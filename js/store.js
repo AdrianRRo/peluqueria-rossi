@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=6";
+import { uid, todayStr, addDays } from "./util.js?v=7";
 
 const KEY = "pr_state_v3";
 
@@ -58,6 +58,19 @@ function persist() { localStorage.setItem(KEY, JSON.stringify(state)); }
 // ---- settings ----
 export const getSettings = () => state.settings || (state.settings = { theme: "light" });
 export function setSetting(k, v) { getSettings()[k] = v; persist(); }
+
+// ---- facturación ----
+export const IVA = 0.21; // peluquería en España
+export function nextTicketNo() { const s = getSettings(); s.lastTicketNo = (s.lastTicketNo || 0) + 1; persist(); return s.lastTicketNo; }
+// asigna nº correlativo a ventas completadas que aún no lo tengan (orden cronológico de cobro)
+export function ensureTicketNumbers() {
+  const s = getSettings();
+  const done = state.appointments.filter((a) => a.status === "completada" && a.sale)
+    .sort((a, b) => ((a.sale.completedAt || a.date) + a.time).localeCompare((b.sale.completedAt || b.date) + b.time));
+  let changed = false;
+  for (const a of done) if (a.sale.ticketNo == null) { s.lastTicketNo = (s.lastTicketNo || 0) + 1; a.sale.ticketNo = s.lastTicketNo; changed = true; }
+  if (changed) persist();
+}
 
 // ---- clientes ----
 export const listClients = () => [...state.clients].sort((a, b) => a.name.localeCompare(b.name));
