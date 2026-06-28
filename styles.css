@@ -13,6 +13,7 @@
   --radius: 16px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { font-family: "Inter", system-ui, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
 h1, h2, h3, .topbar-brand strong, .brand h1 { font-family: "Playfair Display", serif; }
 .accent { color: var(--accent); }
