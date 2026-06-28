@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=9";
-import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, IVA } from "../store.js?v=9";
+import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=10";
+import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=10";
 
 export function renderVentas(root) {
   const products = listProducts(true);
@@ -76,7 +76,7 @@ function drawRecent(root) {
         <button class="icon-btn del" data-del title="Eliminar">🗑</button>
       </div>`;
     row.querySelector("[data-print]").onclick = () => printTicket(a);
-    row.querySelector("[data-del]").onclick = () => { if (confirmDialog("¿Eliminar esta venta?")) { deleteAppt(a.id); renderVentas(root); } };
+    row.querySelector("[data-del]").onclick = () => { if (confirmDialog("¿Eliminar esta venta? Se devolverá el stock.")) { restoreStock(a.sale.lines); deleteAppt(a.id); renderVentas(root); } };
     box.appendChild(row);
   }
 }

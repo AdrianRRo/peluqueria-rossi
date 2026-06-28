@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=9";
+import { uid, todayStr, addDays } from "./util.js?v=10";
 
 const KEY = "pr_state_v3";
 
@@ -16,8 +16,8 @@ function seed() {
     { id: uid(), name: "Mechas", category: SERVICE, price: 60, cost: 18, active: true },
     { id: uid(), name: "Barba", category: SERVICE, price: 10, cost: 1, active: true },
     { id: uid(), name: "Tratamiento hidratación", category: SERVICE, price: 30, cost: 8, active: true },
-    { id: uid(), name: "Champú profesional", category: PRODUCT, price: 14, cost: 6, active: true },
-    { id: uid(), name: "Mascarilla capilar", category: PRODUCT, price: 16, cost: 7, active: true },
+    { id: uid(), name: "Champú profesional", category: PRODUCT, price: 14, cost: 6, active: true, stock: 12, minStock: 5 },
+    { id: uid(), name: "Mascarilla capilar", category: PRODUCT, price: 16, cost: 7, active: true, stock: 4, minStock: 5 },
   ];
   const byName = (n) => products.find((p) => p.name === n);
   const clients = [
@@ -88,11 +88,23 @@ export const listProducts = (onlyActive = false) =>
 export const getProduct = (id) => state.products.find((p) => p.id === id);
 export function upsertProduct(p) {
   p.price = Number(p.price) || 0; p.cost = Number(p.cost) || 0;
+  if (p.stock != null) p.stock = Number(p.stock) || 0;
+  if (p.minStock != null) p.minStock = Number(p.minStock) || 0;
   if (p.id) { Object.assign(getProduct(p.id), p); }
   else { p.id = uid(); state.products.push(p); }
   persist(); return p;
 }
 export function deleteProduct(id) { state.products = state.products.filter((p) => p.id !== id); persist(); }
+
+// ---- stock / inventario (solo productos de venta) ----
+export const listStock = () => state.products.filter((p) => p.category === "producto")
+  .sort((a, b) => (isLow(b) - isLow(a)) || ((Number(a.stock) || 0) - (Number(b.stock) || 0)) || a.name.localeCompare(b.name));
+export const isLow = (p) => (Number(p.stock) || 0) <= (p.minStock != null ? p.minStock : 0);
+export function adjustStock(id, delta) { const p = getProduct(id); if (!p) return; p.stock = (Number(p.stock) || 0) + delta; persist(); }
+export function setStockValues(id, stock, minStock) { const p = getProduct(id); if (!p) return; if (stock != null) p.stock = Number(stock) || 0; if (minStock != null) p.minStock = Number(minStock) || 0; persist(); }
+function decLines(lines) { let ch = false; for (const l of (lines || [])) { if (!l.productId) continue; const p = getProduct(l.productId); if (p && p.category === "producto") { p.stock = (Number(p.stock) || 0) - (l.qty || 1); ch = true; } } return ch; }
+export function consumeStock(lines) { if (decLines(lines)) persist(); }
+export function restoreStock(lines) { let ch = false; for (const l of (lines || [])) { if (!l.productId) continue; const p = getProduct(l.productId); if (p && p.category === "producto") { p.stock = (Number(p.stock) || 0) + (l.qty || 1); ch = true; } } if (ch) persist(); }
 
 // ---- citas ----
 export const listAppointments = () => state.appointments;
@@ -118,6 +130,7 @@ export function createSale({ lines, method, clientName, clientId }) {
     clientId: clientId || null, clientName: clientName || "Venta directa", phone: "", items: [], durationMin: 0, status: "completada", note: "",
     sale: { completedAt: t, method, ticketNo: s.lastTicketNo, lines, total, cost, profit: total - cost },
   };
+  decLines(lines);
   state.appointments.push(a); persist(); return a;
 }
 export const listSales = () => state.appointments.filter((a) => a.kind === "venta").sort((a, b) => (b.sale.ticketNo || 0) - (a.sale.ticketNo || 0));

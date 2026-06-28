@@ -61,6 +61,7 @@ export function openModal(opts) {
     $(`[data-extra="${i}"]`, back).addEventListener("click", () => { const r = b.onClick(back, close); if (r !== false && b.closeAfter !== false) close(); });
   });
   root.appendChild(back);
+  if (opts.onShow) opts.onShow(back);
   return back;
 }
 

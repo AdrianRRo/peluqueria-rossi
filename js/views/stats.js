@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, openModal, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=9";
-import { statsBetween, apptsBetween, apptsByDate, listClients, listProducts, getClient } from "../store.js?v=9";
+import { $, $$, esc, eur, toast, openModal, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=10";
+import { statsBetween, apptsBetween, apptsByDate, listClients, listProducts, getClient } from "../store.js?v=10";
 
 let calMonth = monthStart(todayStr());
 

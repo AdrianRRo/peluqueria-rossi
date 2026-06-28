@@ -1,5 +1,5 @@
-import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=9";
-import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=9";
+import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=10";
+import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=10";
 
 export function renderProductos(root) {
   const prods = listProducts();
@@ -50,6 +50,10 @@ function form(p = {}) {
         <label>Precio de venta (€) <input id="f-price" type="number" step="0.01" min="0" value="${p.price ?? ""}" /></label>
         <label>Coste para ti (€) <input id="f-cost" type="number" step="0.01" min="0" value="${p.cost ?? ""}" /></label>
       </div>
+      <div class="row-2" id="stock-fields" ${cat === "producto" ? "" : "hidden"}>
+        <label>Stock actual (uds) <input id="f-stock" type="number" min="0" value="${p.stock ?? 0}" /></label>
+        <label>Avisar si baja de <input id="f-min" type="number" min="0" value="${p.minStock ?? 3}" /></label>
+      </div>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="f-active" ${p.active === false ? "" : "checked"} style="width:auto" /> Activo (disponible para cobrar)</label>
     </div>`;
 }
@@ -59,10 +63,18 @@ export function editProduct(id, onDone) {
   openModal({
     title: id ? "Editar" : "Nuevo producto/servicio",
     body: form(p),
+    onShow: (m) => {
+      const sync = () => { $("#stock-fields", m).hidden = $("#f-cat", m).value !== "producto"; };
+      $("#f-cat", m).addEventListener("change", sync); sync();
+    },
     onSave: (m) => {
       const name = $("#f-name", m).value.trim();
       if (!name) { toast("Indica el nombre"); return false; }
-      upsertProduct({ id, name, category: $("#f-cat", m).value, price: $("#f-price", m).value, cost: $("#f-cost", m).value, active: $("#f-active", m).checked });
+      const isProd = $("#f-cat", m).value === "producto";
+      upsertProduct({
+        id, name, category: $("#f-cat", m).value, price: $("#f-price", m).value, cost: $("#f-cost", m).value, active: $("#f-active", m).checked,
+        ...(isProd ? { stock: $("#f-stock", m).value, minStock: $("#f-min", m).value } : {}),
+      });
       toast("Guardado");
       onDone && onDone();
     },

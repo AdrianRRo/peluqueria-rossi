@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=9";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct, nextTicketNo } from "../store.js?v=9";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=10";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct, nextTicketNo, consumeStock } from "../store.js?v=10";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -223,6 +223,7 @@ function checkout(id, onDone) {
       const cost = lines.reduce((s, l) => s + l.cost * l.qty, 0);
       const method = $("#co-method", mm).value;
       upsertAppt({ id, status: "completada", sale: { completedAt: todayStr(), method, ticketNo: nextTicketNo(), lines, total, cost, profit: total - cost } });
+      consumeStock(lines);
       toast(`Cobrado ${eur(total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`);
       onDone && onDone();
     },
