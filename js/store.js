@@ -1,6 +1,6 @@
 // ====== capa de datos (backend + caché localStorage) ======
-import { uid, todayStr, addDays, parseDate } from "./util.js?v=17";
-import { getToken, apiPutState } from "./api.js?v=17";
+import { uid, todayStr, addDays, parseDate } from "./util.js?v=18";
+import { getToken, apiPutState } from "./api.js?v=18";
 
 const KEY = "pr_state_v4";
 
@@ -22,18 +22,23 @@ function load() {
   localStorage.setItem(KEY, JSON.stringify(s));
   return s;
 }
+const _count = (s) => (s ? (s.clients || []).length + (s.products || []).length + (s.appointments || []).length : 0);
+function pushNow() { if (getToken()) apiPutState(state).catch(() => {}); }
+
 // Sustituye el estado en memoria por el del servidor (al iniciar sesión/cargar).
+// Salvaguarda: si el servidor está vacío pero localmente hay datos, NO los
+// borra; conserva lo local y lo sube (migración sin pérdida).
 export function hydrate(remote) {
-  if (remote && typeof remote === "object" && Array.isArray(remote.appointments)) {
-    state = {
-      clients: remote.clients || [],
-      products: remote.products || [],
-      appointments: remote.appointments || [],
-      vacations: remote.vacations || [],
-      settings: remote.settings || { theme: "light", closedWeekdays: [0, 1] },
-    };
-    localStorage.setItem(KEY, JSON.stringify(state));
-  }
+  if (!remote || typeof remote !== "object" || !Array.isArray(remote.appointments)) return;
+  if (_count(remote) === 0 && _count(state) > 0) { pushNow(); return; }
+  state = {
+    clients: remote.clients || [],
+    products: remote.products || [],
+    appointments: remote.appointments || [],
+    vacations: remote.vacations || [],
+    settings: remote.settings || { theme: "light", closedWeekdays: [0, 1] },
+  };
+  localStorage.setItem(KEY, JSON.stringify(state));
 }
 
 // Empuje al backend con debounce: cada cambio se guarda en caché local y se

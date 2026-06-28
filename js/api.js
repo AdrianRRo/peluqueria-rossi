@@ -27,6 +27,17 @@ export async function apiGetState() {
   return r.json();
 }
 
+export async function apiNotify(to, message) {
+  const r = await fetch(`${API_BASE}/api/notify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify({ to, message }),
+  });
+  if (r.status === 401) clearToken();
+  if (!r.ok) throw new Error("notify");
+  return true;
+}
+
 export async function apiPutState(state) {
   const r = await fetch(`${API_BASE}/api/state`, {
     method: "PUT",

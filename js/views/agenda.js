@@ -1,5 +1,6 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=17";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=17";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=18";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=18";
+import { apiNotify } from "../api.js?v=18";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -136,8 +137,22 @@ function wireCells(root) {
   });
 }
 
-function remind(a) {
-  whatsapp(a.phone, `Hola ${a.clientName}, te recordamos tu cita en Peluquería Rossi el ${fmtLong(a.date)} a las ${a.time}. ¡Te esperamos! ✂️`);
+function reminderText(a) {
+  return `Hola ${a.clientName}, te recordamos tu cita en Rossi salón para el día ${fmtLong(a.date)} a las ${a.time}, ¿me confirmas por favor?`;
+}
+// Envía el WhatsApp al teléfono del cliente automáticamente vía el backend (bot).
+// Si no hay teléfono avisa; si el backend falla, abre wa.me como respaldo.
+async function remind(a) {
+  const phone = (a.phone || "").trim();
+  if (!phone) { toast("La cita no tiene teléfono del cliente"); return; }
+  const text = reminderText(a);
+  try {
+    await apiNotify(phone, text);
+    toast("WhatsApp enviado al cliente ✅");
+  } catch (e) {
+    toast("No se pudo enviar automático; abriendo WhatsApp…");
+    whatsapp(phone, text);
+  }
 }
 
 // ---------- editor de cita ----------
