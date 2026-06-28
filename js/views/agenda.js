@@ -1,6 +1,6 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=18";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=18";
-import { apiNotify } from "../api.js?v=18";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=19";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=19";
+import { apiNotify } from "../api.js?v=19";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -147,8 +147,9 @@ async function remind(a) {
   if (!phone) { toast("La cita no tiene teléfono del cliente"); return; }
   const text = reminderText(a);
   try {
-    await apiNotify(phone, text);
-    toast("WhatsApp enviado al cliente ✅");
+    const res = await apiNotify(phone, text);
+    if (res && res.sent === false) toast("Envío de WhatsApp desactivado por ahora");
+    else toast("WhatsApp enviado al cliente ✅");
   } catch (e) {
     toast("No se pudo enviar automático; abriendo WhatsApp…");
     whatsapp(phone, text);

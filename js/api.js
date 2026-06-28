@@ -35,7 +35,7 @@ export async function apiNotify(to, message) {
   });
   if (r.status === 401) clearToken();
   if (!r.ok) throw new Error("notify");
-  return true;
+  return r.json().catch(() => ({ ok: true, sent: true }));
 }
 
 export async function apiPutState(state) {
