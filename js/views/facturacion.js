@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=7";
-import { apptsBetween, ensureTicketNumbers, IVA } from "../store.js?v=7";
+import { $, $$, esc, eur, toast, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=8";
+import { apptsBetween, ensureTicketNumbers, IVA } from "../store.js?v=8";
 
 let preset = "mes";
 let cFrom = todayStr(), cTo = todayStr();
@@ -84,7 +84,7 @@ export function renderFacturacion(root) {
       <td class="num">${eur(b)}</td>
       <td class="num">${eur(a.sale.total - b)}</td>
       <td class="num"><b>${eur(a.sale.total)}</b></td>
-      <td>${a.sale.method === "tarjeta" ? "💳" : "💵"}</td>
+      <td>${a.sale.method === "tarjeta" ? "💳" : a.sale.method === "efectivo" ? "💵" : "—"}</td>
       <td class="num"><button class="icon-btn" data-print title="Imprimir ticket">🖨️</button></td>`;
     tr.querySelector("[data-print]").onclick = () => printTicket(a);
     body.appendChild(tr);

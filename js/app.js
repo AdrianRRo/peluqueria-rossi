@@ -1,10 +1,10 @@
-import { $, $$ } from "./util.js?v=7";
-import { getSettings, setSetting } from "./store.js?v=7";
-import { renderAgenda } from "./views/agenda.js?v=7";
-import { renderClientes } from "./views/clientes.js?v=7";
-import { renderProductos } from "./views/productos.js?v=7";
-import { renderStats } from "./views/stats.js?v=7";
-import { renderFacturacion } from "./views/facturacion.js?v=7";
+import { $, $$ } from "./util.js?v=8";
+import { getSettings, setSetting } from "./store.js?v=8";
+import { renderAgenda } from "./views/agenda.js?v=8";
+import { renderClientes } from "./views/clientes.js?v=8";
+import { renderProductos } from "./views/productos.js?v=8";
+import { renderStats } from "./views/stats.js?v=8";
+import { renderFacturacion } from "./views/facturacion.js?v=8";
 
 const AUTH = { user: "rossi", pass: "rossi2026" };
 const SES = "pr_session";
