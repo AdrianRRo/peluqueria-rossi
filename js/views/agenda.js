@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=8";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct, nextTicketNo } from "../store.js?v=8";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=9";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct, nextTicketNo } from "../store.js?v=9";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -54,7 +54,7 @@ function drawWeek(root) {
   for (let h = START_H; h < END_H; h++) {
     rows += `<div class="cal-hour">${String(h).padStart(2, "0")}:00</div>`;
     for (const d of days) {
-      const items = apptsByDate(d).filter((a) => clampH(a.time) === h);
+      const items = apptsByDate(d).filter((a) => a.kind !== "venta" && clampH(a.time) === h);
       const chips = items.map((a) => chipHTML(a)).join("");
       rows += `<div class="cal-cell" data-date="${d}" data-hour="${h}">${chips}</div>`;
     }
@@ -65,7 +65,7 @@ function drawWeek(root) {
 
 function drawDay(root) {
   $("#ag-sub", root).textContent = fmtLong(anchor);
-  const items = apptsByDate(anchor);
+  const items = apptsByDate(anchor).filter((a) => a.kind !== "venta");
   const body = $("#ag-body", root);
   if (!items.length) { body.innerHTML = `<p class="empty">No hay citas este día. Pulsa “+ Nueva cita”.</p>`; return; }
   const list = document.createElement("div");

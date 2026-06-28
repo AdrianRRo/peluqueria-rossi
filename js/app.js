@@ -1,10 +1,11 @@
-import { $, $$ } from "./util.js?v=8";
-import { getSettings, setSetting } from "./store.js?v=8";
-import { renderAgenda } from "./views/agenda.js?v=8";
-import { renderClientes } from "./views/clientes.js?v=8";
-import { renderProductos } from "./views/productos.js?v=8";
-import { renderStats } from "./views/stats.js?v=8";
-import { renderFacturacion } from "./views/facturacion.js?v=8";
+import { $, $$ } from "./util.js?v=9";
+import { getSettings, setSetting } from "./store.js?v=9";
+import { renderAgenda } from "./views/agenda.js?v=9";
+import { renderClientes } from "./views/clientes.js?v=9";
+import { renderProductos } from "./views/productos.js?v=9";
+import { renderStats } from "./views/stats.js?v=9";
+import { renderFacturacion } from "./views/facturacion.js?v=9";
+import { renderVentas } from "./views/ventas.js?v=9";
 
 const AUTH = { user: "rossi", pass: "rossi2026" };
 const SES = "pr_session";
@@ -13,6 +14,7 @@ const ROUTES = {
   "#/agenda": renderAgenda,
   "#/clientes": renderClientes,
   "#/productos": renderProductos,
+  "#/ventas": renderVentas,
   "#/stats": renderStats,
   "#/facturacion": renderFacturacion,
 };

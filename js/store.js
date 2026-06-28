@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=8";
+import { uid, todayStr, addDays } from "./util.js?v=9";
 
 const KEY = "pr_state_v3";
 
@@ -105,6 +105,22 @@ export function upsertAppt(a) {
   persist(); return a;
 }
 export function deleteAppt(id) { state.appointments = state.appointments.filter((a) => a.id !== id); persist(); }
+
+// venta directa de productos (sin cita). Se guarda como registro completado para que entre en estadísticas y facturación.
+export function createSale({ lines, method, clientName, clientId }) {
+  const total = lines.reduce((s, l) => s + l.price * (l.qty || 1), 0);
+  const cost = lines.reduce((s, l) => s + (l.cost || 0) * (l.qty || 1), 0);
+  const t = todayStr();
+  const now = new Date();
+  const s = getSettings(); s.lastTicketNo = (s.lastTicketNo || 0) + 1;
+  const a = {
+    id: uid(), kind: "venta", date: t, time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
+    clientId: clientId || null, clientName: clientName || "Venta directa", phone: "", items: [], durationMin: 0, status: "completada", note: "",
+    sale: { completedAt: t, method, ticketNo: s.lastTicketNo, lines, total, cost, profit: total - cost },
+  };
+  state.appointments.push(a); persist(); return a;
+}
+export const listSales = () => state.appointments.filter((a) => a.kind === "venta").sort((a, b) => (b.sale.ticketNo || 0) - (a.sale.ticketNo || 0));
 
 // ---- estadísticas ----
 export function statsBetween(from, to) {
