@@ -1,13 +1,13 @@
-import { $, $$ } from "./util.js?v=14";
-import { getSettings, setSetting } from "./store.js?v=14";
-import { renderAgenda } from "./views/agenda.js?v=14";
-import { renderClientes } from "./views/clientes.js?v=14";
-import { renderProductos } from "./views/productos.js?v=14";
-import { renderStock } from "./views/stock.js?v=14";
-import { renderStats } from "./views/stats.js?v=14";
-import { renderFacturacion } from "./views/facturacion.js?v=14";
-import { renderVentas } from "./views/ventas.js?v=14";
-import { renderConfig } from "./views/config.js?v=14";
+import { $, $$ } from "./util.js?v=15";
+import { getSettings, setSetting } from "./store.js?v=15";
+import { renderAgenda } from "./views/agenda.js?v=15";
+import { renderClientes } from "./views/clientes.js?v=15";
+import { renderProductos } from "./views/productos.js?v=15";
+import { renderStock } from "./views/stock.js?v=15";
+import { renderStats } from "./views/stats.js?v=15";
+import { renderFacturacion } from "./views/facturacion.js?v=15";
+import { renderVentas } from "./views/ventas.js?v=15";
+import { renderConfig } from "./views/config.js?v=15";
 
 const AUTH = { user: "rossi", pass: "rossi2026" };
 const SES = "pr_session";

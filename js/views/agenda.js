@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=14";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=14";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=15";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=15";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -47,10 +47,12 @@ function drawWeek(root) {
   const today = todayStr();
   const cl = {}; days.forEach((d) => (cl[d] = closedInfo(d)));
 
+  const clsOf = (c) => (c ? (c.type === "vac" ? "closed closed-vac" : "closed closed-weekly") : "");
+
   let head = `<div class="cal-corner"></div>`;
   for (const d of days) {
     const c = cl[d];
-    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${c ? "vac" : ""}"><div class="dn">${dowShort(d)}${c ? (c.type === "vac" ? " 🌴" : " ✕") : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
+    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${clsOf(c)}"><div class="dn">${dowShort(d)}${c ? (c.type === "vac" ? " 🌴" : " ✕") : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
   }
   let rows = "";
   for (let h = START_H; h < END_H; h++) {
@@ -58,7 +60,7 @@ function drawWeek(root) {
     for (const d of days) {
       const items = apptsByDate(d).filter((a) => a.kind !== "venta" && clampH(a.time) === h);
       const chips = items.map((a) => chipHTML(a)).join("");
-      rows += `<div class="cal-cell ${cl[d] ? "vac" : ""}" data-date="${d}" data-hour="${h}" ${cl[d] ? `title="${esc(cl[d].label)}"` : ""}>${chips}</div>`;
+      rows += `<div class="cal-cell ${clsOf(cl[d])}" data-date="${d}" data-hour="${h}" ${cl[d] ? `title="${esc(cl[d].label)}"` : ""}>${chips}</div>`;
     }
   }
   $("#ag-body", root).innerHTML = `<div class="cal"><div class="cal-grid" style="--cols:7">${head}${rows}</div></div>`;
@@ -183,9 +185,9 @@ function editAppt(id, preset, onDone) {
     title: id ? "Editar cita" : "Nueva cita",
     body,
     saveLabel: "Guardar",
-    extra: id && a.status !== "completada" ? [
-      { label: "💶 Completar y cobrar", cls: "btn-primary", onClick: (mm, close) => { close(); checkout(id, onDone); } },
-      { label: "🗑", cls: "btn-danger", onClick: () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(id); onDone && onDone(); } else return false; } },
+    extra: id ? [
+      ...(a.status !== "completada" ? [{ label: "💶 Completar y cobrar", cls: "btn-primary", onClick: (mm, close) => { close(); checkout(id, onDone); } }] : []),
+      { label: "🗑 Eliminar", cls: "btn-danger", onClick: () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(id); onDone && onDone(); } else return false; } },
     ] : [],
     onSave: (mm) => {
       const sel = $("#f-client-sel", mm).value;

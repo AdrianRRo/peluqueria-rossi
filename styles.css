@@ -157,9 +157,22 @@ textarea { resize: vertical; min-height: 64px; }
 .cal-hour { font-size: 0.72rem; color: var(--muted); padding: 4px 6px; text-align: right; border-top: 1px solid var(--border); }
 .cal-cell { border-top: 1px solid var(--border); border-left: 1px solid var(--border); min-height: 52px; padding: 3px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
 .cal-cell:hover { background: var(--bg-soft); }
-.cal-dayhead.vac .dd { color: var(--muted); }
-.cal-cell.vac { cursor: not-allowed; background-image: repeating-linear-gradient(45deg, transparent, transparent 7px, var(--border) 7px, var(--border) 8px); }
-.cal-cell.vac:hover { background-color: transparent; }
+/* días cerrados en el calendario (vacaciones vs cierre semanal) */
+.cal-cell.closed { cursor: not-allowed; background-color: var(--cl-bg); background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--cl-stripe) 6px, var(--cl-stripe) 8px); }
+.cal-cell.closed:hover { background-color: var(--cl-bg); background-image: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--cl-stripe) 6px, var(--cl-stripe) 8px); }
+.cal-cell.closed-weekly, .cal-dayhead.closed-weekly { --cl-bg: rgba(110,116,150,.12); --cl-stripe: rgba(110,116,150,.34); }
+.cal-cell.closed-vac, .cal-dayhead.closed-vac { --cl-bg: rgba(217,138,60,.14); --cl-stripe: rgba(217,138,60,.46); }
+.cal-dayhead.closed-weekly { background-color: var(--cl-bg); }
+.cal-dayhead.closed-weekly .dd { color: #5f6688; }
+.cal-dayhead.closed-vac { background-color: var(--cl-bg); }
+.cal-dayhead.closed-vac .dd { color: #c47d1f; }
+
+/* legenda / tags de tipos de cierre */
+.closed-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+.legend-chip { display: inline-flex; align-items: center; padding: 4px 12px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--border); color: var(--text); }
+.legend-chip.lc-weekly { background-color: rgba(110,116,150,.12); background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(110,116,150,.34) 5px, rgba(110,116,150,.34) 7px); }
+.legend-chip.lc-vac { background-color: rgba(217,138,60,.14); background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(217,138,60,.46) 5px, rgba(217,138,60,.46) 7px); }
+.day-pill { display: inline-flex; align-items: center; padding: 3px 11px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; background-color: rgba(110,116,150,.12); background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(110,116,150,.34) 5px, rgba(110,116,150,.34) 7px); border: 1px solid var(--border); color: var(--text); }
 .chip { border-radius: 8px; padding: 4px 7px; font-size: 0.74rem; line-height: 1.25; border-left: 3px solid var(--accent); background: var(--accent-soft); color: var(--text); overflow: hidden; }
 .chip b { font-weight: 600; }
 .chip.s-confirmada { border-left-color: var(--blue); background: var(--blue-soft); }
