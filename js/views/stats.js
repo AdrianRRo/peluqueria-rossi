@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, openModal, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=5";
-import { statsBetween, apptsBetween, apptsByDate, listClients, listProducts, getClient } from "../store.js?v=5";
+import { $, $$, esc, eur, toast, openModal, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=6";
+import { statsBetween, apptsBetween, apptsByDate, listClients, listProducts, getClient } from "../store.js?v=6";
 
 let calMonth = monthStart(todayStr());
 
@@ -42,6 +42,13 @@ export function renderStats(root) {
       <div class="kpi bad"><div class="v">${eur(s.cost)}</div><div class="l">Costes (productos)</div></div>
       <div class="kpi good"><div class="v">${eur(s.profit)}</div><div class="l">Beneficio neto</div></div>
       <div class="kpi"><div class="v">${s.count}</div><div class="l">citas · ${eur(s.avgTicket)} ticket medio</div></div>
+    </div>
+
+    <div class="section-card" style="margin-bottom:16px;display:flex;gap:28px;align-items:center;flex-wrap:wrap">
+      <b>Cobros por método</b>
+      <span>💵 Efectivo: <b>${eur(s.byMethod.efectivo.total)}</b> <span class="muted">(${s.byMethod.efectivo.count})</span></span>
+      <span>💳 Tarjeta: <b>${eur(s.byMethod.tarjeta.total)}</b> <span class="muted">(${s.byMethod.tarjeta.count})</span></span>
+      ${s.byMethod.otro.count ? `<span class="muted">Sin especificar: ${eur(s.byMethod.otro.total)} (${s.byMethod.otro.count})</span>` : ""}
     </div>
 
     <div class="grid-2">
@@ -132,8 +139,9 @@ function dayDetail(date) {
   const blocks = appts.map((a) => {
     revenue += a.sale.total; cost += a.sale.cost;
     const lines = a.sale.lines.map((l) => `<tr><td>${esc(l.name)}</td><td class="num">${l.qty || 1}</td><td class="num">${eur(l.price)}</td><td class="num">${eur(l.price * (l.qty || 1))}</td></tr>`).join("");
+    const m = a.sale.method === "tarjeta" ? "💳 Tarjeta" : a.sale.method === "efectivo" ? "💵 Efectivo" : "";
     return `<div class="section-card" style="padding:12px;margin-bottom:10px">
-      <b>${esc(a.time)} · ${esc(a.clientName)}</b>
+      <b>${esc(a.time)} · ${esc(a.clientName)}</b>${m ? ` <span class="muted" style="font-weight:400">· ${m}</span>` : ""}
       <table class="tbl" style="margin-top:6px"><thead><tr><th>Concepto</th><th class="num">Uds</th><th class="num">Precio</th><th class="num">Subtotal</th></tr></thead><tbody>${lines}</tbody></table>
     </div>`;
   }).join("");
@@ -151,20 +159,20 @@ function exportExcel(from, to) {
   const done = inRange.filter((a) => a.status === "completada" && a.sale);
 
   const daily = {};
-  for (const a of done) { const d = (daily[a.date] ||= { Fecha: a.date, Citas: 0, Ingresos: 0, Costes: 0, Beneficio: 0 }); d.Citas++; d.Ingresos += a.sale.total; d.Costes += a.sale.cost; d.Beneficio += a.sale.profit; }
+  for (const a of done) { const d = (daily[a.date] ||= { Fecha: a.date, Citas: 0, Ingresos: 0, Efectivo: 0, Tarjeta: 0, Costes: 0, Beneficio: 0 }); d.Citas++; d.Ingresos += a.sale.total; if (a.sale.method === "tarjeta") d.Tarjeta += a.sale.total; else if (a.sale.method === "efectivo") d.Efectivo += a.sale.total; d.Costes += a.sale.cost; d.Beneficio += a.sale.profit; }
   const dailyRows = Object.values(daily).sort((a, b) => a.Fecha.localeCompare(b.Fecha));
 
   const saleRows = [];
-  for (const a of done) for (const l of a.sale.lines) saleRows.push({ Fecha: a.date, Cliente: a.clientName, Concepto: l.name, Cantidad: l.qty || 1, "Precio (€)": l.price, "Coste (€)": l.cost, "Beneficio (€)": (l.price - (l.cost || 0)) * (l.qty || 1) });
+  for (const a of done) for (const l of a.sale.lines) saleRows.push({ Fecha: a.date, Cliente: a.clientName, Concepto: l.name, Cantidad: l.qty || 1, "Precio (€)": l.price, "Coste (€)": l.cost, "Beneficio (€)": (l.price - (l.cost || 0)) * (l.qty || 1), Pago: a.sale.method || "" });
 
-  const apptRows = inRange.map((a) => ({ Fecha: a.date, Hora: a.time, Cliente: a.clientName, Teléfono: a.phone || "", Servicios: (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", "), Estado: a.status, "Importe (€)": a.sale ? a.sale.total : "" }));
+  const apptRows = inRange.map((a) => ({ Fecha: a.date, Hora: a.time, Cliente: a.clientName, Teléfono: a.phone || "", Servicios: (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", "), Estado: a.status, "Importe (€)": a.sale ? a.sale.total : "", Pago: a.sale ? a.sale.method : "" }));
 
   const clientRows = listClients().map((c) => ({ Nombre: c.name, Teléfono: c.phone || "", Email: c.email || "", Cabello: c.hairType || "", Notas: c.notes || "" }));
   const prodRows = listProducts().map((p) => ({ Nombre: p.name, Tipo: p.category, "Precio (€)": p.price, "Coste (€)": p.cost, "Margen (€)": p.price - p.cost, Activo: p.active ? "Sí" : "No" }));
 
   if (!window.XLSX) {
     // fallback CSV (resumen diario)
-    const csv = ["Fecha;Citas;Ingresos;Costes;Beneficio", ...dailyRows.map((r) => `${r.Fecha};${r.Citas};${r.Ingresos};${r.Costes};${r.Beneficio}`)].join("\n");
+    const csv = ["Fecha;Citas;Ingresos;Efectivo;Tarjeta;Costes;Beneficio", ...dailyRows.map((r) => `${r.Fecha};${r.Citas};${r.Ingresos};${r.Efectivo};${r.Tarjeta};${r.Costes};${r.Beneficio}`)].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `peluqueria-rossi_${from}_${to}.csv`; a.click();
     toast("Exportado (CSV)");

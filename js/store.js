@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=5";
+import { uid, todayStr, addDays } from "./util.js?v=6";
 
 const KEY = "pr_state_v3";
 
@@ -32,14 +32,14 @@ function seed() {
     { id: uid(), date: addDays(t, 1), time: "17:00", clientId: clients[2].id, clientName: clients[2].name, phone: clients[2].phone, items: [mkItem(byName("Tinte"))], durationMin: 90, status: "confirmada", note: "" },
   ];
   // un par de citas completadas en días pasados para que las estadísticas tengan datos
-  const past = (s, p) => ({
+  const past = (s, p, method) => ({
     id: uid(), date: s, time: "12:00", clientId: clients[0].id, clientName: clients[0].name, phone: clients[0].phone,
     items: [], durationMin: 45, status: "completada", note: "",
-    sale: { completedAt: s, lines: [{ name: p.name, qty: 1, price: p.price, cost: p.cost }], total: p.price, cost: p.cost, profit: p.price - p.cost },
+    sale: { completedAt: s, method, lines: [{ name: p.name, qty: 1, price: p.price, cost: p.cost }], total: p.price, cost: p.cost, profit: p.price - p.cost },
   });
-  appointments.push(past(addDays(t, -1), byName("Mechas")));
-  appointments.push(past(addDays(t, -2), byName("Tinte")));
-  appointments.push(past(addDays(t, -2), byName("Corte mujer")));
+  appointments.push(past(addDays(t, -1), byName("Mechas"), "tarjeta"));
+  appointments.push(past(addDays(t, -2), byName("Tinte"), "efectivo"));
+  appointments.push(past(addDays(t, -2), byName("Corte mujer"), "tarjeta"));
   return { clients, products, appointments, settings: { theme: "light" } };
 }
 
@@ -99,12 +99,16 @@ export function statsBetween(from, to) {
   const noShow = apptsBetween(from, to).filter((a) => a.status === "no_show").length;
   let revenue = 0, cost = 0;
   const perItem = {};   // nombre -> {qty, revenue, cost}
-  const perDay = {};    // fecha -> {revenue, cost, count}
+  const perDay = {};    // fecha -> {revenue, cost, count, efectivo, tarjeta}
+  const byMethod = { efectivo: { total: 0, count: 0 }, tarjeta: { total: 0, count: 0 }, otro: { total: 0, count: 0 } };
   for (const a of done) {
     const s = a.sale;
     revenue += s.total; cost += s.cost;
-    const d = (perDay[a.date] ||= { revenue: 0, cost: 0, count: 0 });
+    const m = s.method === "tarjeta" ? "tarjeta" : s.method === "efectivo" ? "efectivo" : "otro";
+    byMethod[m].total += s.total; byMethod[m].count++;
+    const d = (perDay[a.date] ||= { revenue: 0, cost: 0, count: 0, efectivo: 0, tarjeta: 0 });
     d.revenue += s.total; d.cost += s.cost; d.count++;
+    if (m === "tarjeta") d.tarjeta += s.total; else if (m === "efectivo") d.efectivo += s.total;
     for (const ln of s.lines) {
       const it = (perItem[ln.name] ||= { qty: 0, revenue: 0, cost: 0 });
       it.qty += ln.qty || 1; it.revenue += (ln.price || 0) * (ln.qty || 1); it.cost += (ln.cost || 0) * (ln.qty || 1);
@@ -113,7 +117,7 @@ export function statsBetween(from, to) {
   return {
     count: done.length, noShow, revenue, cost, profit: revenue - cost,
     avgTicket: done.length ? revenue / done.length : 0,
-    perItem, perDay, done,
+    perItem, perDay, byMethod, done,
   };
 }
 

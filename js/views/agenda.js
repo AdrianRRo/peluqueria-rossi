@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=5";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct } from "../store.js?v=5";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=6";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct } from "../store.js?v=6";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -202,7 +202,14 @@ function checkout(id, onDone) {
         <div class="lines-head" style="display:grid;grid-template-columns:1fr 86px 70px 36px;gap:8px;font-size:.7rem;color:var(--muted);margin-bottom:4px"><span>Concepto</span><span>Precio €</span><span>Cant.</span><span></span></div>
         <div id="co-items"></div>
         <button type="button" class="btn btn-soft btn-sm" id="co-add">+ Añadir concepto</button>
+        <p class="muted" style="font-size:.76rem;margin-top:6px">Puedes añadir varios conceptos en la misma cita (p. ej. labios + corte).</p>
       </div>
+      <label>Método de pago
+        <select id="co-method">
+          <option value="efectivo" ${a.sale && a.sale.method === "efectivo" ? "selected" : ""}>💵 Efectivo</option>
+          <option value="tarjeta" ${a.sale && a.sale.method === "tarjeta" ? "selected" : ""}>💳 Tarjeta</option>
+        </select>
+      </label>
       <div class="checkout-total"><span>Total a cobrar</span><span class="big" id="co-total">€0,00</span></div>
     </div>`;
   const m = openModal({
@@ -214,8 +221,9 @@ function checkout(id, onDone) {
       if (!lines.length) { toast("Añade al menos un concepto"); return false; }
       const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
       const cost = lines.reduce((s, l) => s + l.cost * l.qty, 0);
-      upsertAppt({ id, status: "completada", sale: { completedAt: todayStr(), lines, total, cost, profit: total - cost } });
-      toast(`Cobrado ${eur(total)}`);
+      const method = $("#co-method", mm).value;
+      upsertAppt({ id, status: "completada", sale: { completedAt: todayStr(), method, lines, total, cost, profit: total - cost } });
+      toast(`Cobrado ${eur(total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`);
       onDone && onDone();
     },
   });
