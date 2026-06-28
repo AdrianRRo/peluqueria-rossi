@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=10";
+import { uid, todayStr, addDays } from "./util.js?v=11";
 
 const KEY = "pr_state_v3";
 
@@ -71,6 +71,12 @@ export function ensureTicketNumbers() {
   for (const a of done) if (a.sale.ticketNo == null) { s.lastTicketNo = (s.lastTicketNo || 0) + 1; a.sale.ticketNo = s.lastTicketNo; changed = true; }
   if (changed) persist();
 }
+
+// ---- vacaciones / días cerrados ----
+export const listVacations = () => [...(state.vacations || [])].sort((a, b) => a.from.localeCompare(b.from));
+export function addVacation(from, to, note) { state.vacations ||= []; const v = { id: uid(), from, to: to || from, note: note || "" }; state.vacations.push(v); persist(); return v; }
+export function deleteVacation(id) { state.vacations = (state.vacations || []).filter((v) => v.id !== id); persist(); }
+export function vacationOn(date) { return (state.vacations || []).find((v) => date >= v.from && date <= v.to) || null; }
 
 // ---- clientes ----
 export const listClients = () => [...state.clients].sort((a, b) => a.name.localeCompare(b.name));

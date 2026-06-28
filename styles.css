@@ -157,6 +157,9 @@ textarea { resize: vertical; min-height: 64px; }
 .cal-hour { font-size: 0.72rem; color: var(--muted); padding: 4px 6px; text-align: right; border-top: 1px solid var(--border); }
 .cal-cell { border-top: 1px solid var(--border); border-left: 1px solid var(--border); min-height: 52px; padding: 3px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
 .cal-cell:hover { background: var(--bg-soft); }
+.cal-dayhead.vac .dd { color: var(--muted); }
+.cal-cell.vac { cursor: not-allowed; background-image: repeating-linear-gradient(45deg, transparent, transparent 7px, var(--border) 7px, var(--border) 8px); }
+.cal-cell.vac:hover { background-color: transparent; }
 .chip { border-radius: 8px; padding: 4px 7px; font-size: 0.74rem; line-height: 1.25; border-left: 3px solid var(--accent); background: var(--accent-soft); color: var(--text); overflow: hidden; }
 .chip b { font-weight: 600; }
 .chip.s-confirmada { border-left-color: var(--blue); background: var(--blue-soft); }

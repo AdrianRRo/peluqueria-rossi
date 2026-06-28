@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=10";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct, nextTicketNo, consumeStock } from "../store.js?v=10";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=11";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, listVacations, addVacation, deleteVacation, vacationOn } from "../store.js?v=11";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -23,6 +23,7 @@ export function renderAgenda(root) {
           <button class="btn btn-soft btn-sm" id="ag-today">Hoy</button>
           <button class="icon-btn" id="ag-next">›</button>
         </div>
+        <button class="btn btn-soft" id="ag-vac" title="Días cerrados / vacaciones">🌴 Cerrado</button>
         <button class="btn btn-primary" id="ag-new">+ Nueva cita</button>
       </div>
     </div>
@@ -35,6 +36,7 @@ export function renderAgenda(root) {
   $("#ag-prev", root).onclick = () => { anchor = addDays(anchor, view === "semana" ? -7 : -1); renderAgenda(root); };
   $("#ag-next", root).onclick = () => { anchor = addDays(anchor, view === "semana" ? 7 : 1); renderAgenda(root); };
   $("#ag-today", root).onclick = () => { anchor = todayStr(); renderAgenda(root); };
+  $("#ag-vac", root).onclick = () => manageVacations(() => renderAgenda(root));
   $("#ag-new", root).onclick = () => editAppt(null, { date: anchor, time: "10:00" }, () => renderAgenda(root));
 
   if (view === "semana") drawWeek(root); else drawDay(root);
@@ -45,10 +47,11 @@ function drawWeek(root) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   $("#ag-sub", root).textContent = `${fmtShort(days[0])} – ${fmtShort(days[6])}`;
   const today = todayStr();
+  const vac = {}; days.forEach((d) => (vac[d] = vacationOn(d)));
 
   let head = `<div class="cal-corner"></div>`;
   for (const d of days) {
-    head += `<div class="cal-dayhead ${d === today ? "today" : ""}"><div class="dn">${dowShort(d)}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
+    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${vac[d] ? "vac" : ""}"><div class="dn">${dowShort(d)}${vac[d] ? " 🌴" : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
   }
   let rows = "";
   for (let h = START_H; h < END_H; h++) {
@@ -56,7 +59,7 @@ function drawWeek(root) {
     for (const d of days) {
       const items = apptsByDate(d).filter((a) => a.kind !== "venta" && clampH(a.time) === h);
       const chips = items.map((a) => chipHTML(a)).join("");
-      rows += `<div class="cal-cell" data-date="${d}" data-hour="${h}">${chips}</div>`;
+      rows += `<div class="cal-cell ${vac[d] ? "vac" : ""}" data-date="${d}" data-hour="${h}" ${vac[d] ? `title="Cerrado: ${esc(vac[d].note || "vacaciones")}"` : ""}>${chips}</div>`;
     }
   }
   $("#ag-body", root).innerHTML = `<div class="cal"><div class="cal-grid" style="--cols:7">${head}${rows}</div></div>`;
@@ -67,7 +70,9 @@ function drawDay(root) {
   $("#ag-sub", root).textContent = fmtLong(anchor);
   const items = apptsByDate(anchor).filter((a) => a.kind !== "venta");
   const body = $("#ag-body", root);
-  if (!items.length) { body.innerHTML = `<p class="empty">No hay citas este día. Pulsa “+ Nueva cita”.</p>`; return; }
+  const vac = vacationOn(anchor);
+  const banner = vac ? `<div class="section-card" style="margin-bottom:14px;border-color:var(--accent);background:var(--accent-soft, var(--bg-soft))"><b>🌴 Día cerrado</b> · ${esc(vac.note || "vacaciones")} <span class="muted">— no se dan citas</span></div>` : "";
+  if (!items.length) { body.innerHTML = banner + `<p class="empty">No hay citas este día.${vac ? "" : " Pulsa “+ Nueva cita”."}</p>`; return; }
   const list = document.createElement("div");
   list.className = "list day-list";
   for (const a of items) {
@@ -93,7 +98,7 @@ function drawDay(root) {
     row.querySelector('[data-act="del"]').onclick = () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(a.id); renderAgenda(root); } };
     list.appendChild(row);
   }
-  body.innerHTML = "";
+  body.innerHTML = banner;
   body.appendChild(list);
 }
 
@@ -109,6 +114,7 @@ function wireCells(root) {
     cell.addEventListener("click", (e) => {
       const chip = e.target.closest("[data-appt]");
       if (chip) { e.stopPropagation(); editAppt(chip.dataset.appt, null, () => renderAgenda(root)); return; }
+      if (vacationOn(cell.dataset.date)) { toast("Día cerrado (vacaciones). Usa 🌴 Cerrado para editarlo."); return; }
       editAppt(null, { date: cell.dataset.date, time: `${String(cell.dataset.hour).padStart(2, "0")}:00` }, () => renderAgenda(root));
     });
   });
@@ -118,6 +124,45 @@ function remind(a) {
   whatsapp(a.phone, `Hola ${a.clientName}, te recordamos tu cita en Peluquería Rossi el ${fmtLong(a.date)} a las ${a.time}. ¡Te esperamos! ✂️`);
 }
 
+// ---------- vacaciones / días cerrados ----------
+function manageVacations(onDone) {
+  const drawList = (m) => {
+    const list = listVacations();
+    $("#vac-list", m).innerHTML = list.length ? list.map((v) => `
+      <div class="row">
+        <div class="row-main"><h4>${fmtShort(v.from)}${v.to !== v.from ? ` – ${fmtShort(v.to)}` : ""}</h4><p>${esc(v.note || "Cerrado")}</p></div>
+        <div class="row-actions"><button class="icon-btn del" data-del="${v.id}" title="Quitar">🗑</button></div>
+      </div>`).join("") : `<p class="empty">No hay días cerrados.</p>`;
+    $$("[data-del]", m).forEach((b) => (b.onclick = () => { deleteVacation(b.dataset.del); drawList(m); onDone && onDone(); }));
+  };
+  const m = openModal({
+    title: "Vacaciones / días cerrados",
+    saveLabel: "Añadir",
+    body: `
+      <div class="form-grid">
+        <div class="row-2">
+          <label>Desde <input id="vac-from" type="date" value="${todayStr()}" /></label>
+          <label>Hasta <input id="vac-to" type="date" value="${todayStr()}" /></label>
+        </div>
+        <label>Motivo (opcional) <input id="vac-note" placeholder="Vacaciones, festivo, cierre..." /></label>
+        <div class="field"><label>Días cerrados</label><div class="list" id="vac-list"></div></div>
+        <p class="muted" style="font-size:.78rem">En esos días no se podrán crear citas desde el calendario.</p>
+      </div>`,
+    onSave: (mm) => {
+      const from = $("#vac-from", mm).value;
+      const to = $("#vac-to", mm).value || from;
+      if (!from) { toast("Indica la fecha"); return false; }
+      if (to < from) { toast("La fecha 'hasta' es anterior a 'desde'"); return false; }
+      addVacation(from, to, $("#vac-note", mm).value.trim());
+      toast("Días cerrados añadidos");
+      drawList(mm);
+      onDone && onDone();
+      return false; // mantener abierto para seguir gestionando
+    },
+  });
+  drawList(m);
+}
+
 // ---------- editor de cita ----------
 function editAppt(id, preset, onDone) {
   const a = id ? { ...getAppt(id) } : { status: "pendiente", durationMin: 30, items: [], ...preset };
@@ -125,11 +170,20 @@ function editAppt(id, preset, onDone) {
   const services = listProducts(true);
   const isPast = (a.date || todayStr()) < todayStr();
   const remindDefault = a.remind != null ? a.remind : !isPast;
+  const known = a.clientId && clients.some((c) => c.id === a.clientId);
+  const keepLegacy = !known && a.clientName; // cita antigua sin cliente en la lista
   const body = `
     <div class="form-grid">
       <label>Cliente
-        <input id="f-client" list="cli-dl" value="${esc(a.clientName || "")}" placeholder="Nombre del cliente" />
-        <datalist id="cli-dl">${clients.map((c) => `<option value="${esc(c.name)}">`).join("")}</datalist>
+        <select id="f-client-sel">
+          <option value="">— Selecciona cliente —</option>
+          ${keepLegacy ? `<option value="__keep__" selected>${esc(a.clientName)} (actual)</option>` : ""}
+          ${clients.map((c) => `<option value="${c.id}" ${known && a.clientId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
+          <option value="__new__">➕ Nuevo cliente…</option>
+        </select>
+      </label>
+      <label id="f-newclient-wrap" hidden>Nombre del nuevo cliente
+        <input id="f-newname" placeholder="Nombre y apellidos" />
       </label>
       <div class="row-2">
         <label>Teléfono <input id="f-phone" type="tel" value="${esc(a.phone || "")}" placeholder="+34..." /></label>
@@ -159,15 +213,30 @@ function editAppt(id, preset, onDone) {
       { label: "🗑", cls: "btn-danger", onClick: () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(id); onDone && onDone(); } else return false; } },
     ] : [],
     onSave: (mm) => {
-      const name = $("#f-client", mm).value.trim();
-      if (!name) { toast("Indica el cliente"); return false; }
+      const sel = $("#f-client-sel", mm).value;
+      let phone = $("#f-phone", mm).value.trim();
+      let clientId = null, clientName = "";
+      if (sel === "__new__") {
+        clientName = $("#f-newname", mm).value.trim();
+        if (!clientName) { toast("Indica el nombre del nuevo cliente"); return false; }
+        const c = upsertClient({ name: clientName, phone });
+        clientId = c.id;
+      } else if (sel === "__keep__") {
+        clientId = a.clientId || null; clientName = a.clientName || "";
+      } else if (sel) {
+        const c = getClient(sel); clientId = c.id; clientName = c.name;
+        if (!phone) phone = c.phone || "";
+      } else {
+        toast("Selecciona un cliente o crea uno nuevo"); return false;
+      }
+      const date = $("#f-date", mm).value;
+      if (vacationOn(date) && !confirmDialog("Ese día está marcado como cerrado (vacaciones). ¿Crear la cita igualmente?")) return false;
       const items = readLines(mm.querySelector("#f-items"), false);
-      const cli = clients.find((c) => c.name.toLowerCase() === name.toLowerCase());
       const remindOn = $("#f-remind", mm).checked;
       const saved = upsertAppt({
-        id, clientId: cli ? cli.id : (a.clientId || null), clientName: name,
-        phone: $("#f-phone", mm).value.trim(), status: $("#f-status", mm).value,
-        date: $("#f-date", mm).value, time: $("#f-time", mm).value, durationMin: Number($("#f-dur", mm).value) || 30,
+        id, clientId, clientName,
+        phone, status: $("#f-status", mm).value,
+        date, time: $("#f-time", mm).value, durationMin: Number($("#f-dur", mm).value) || 30,
         items, note: $("#f-note", mm).value.trim(), sale: a.sale, remind: remindOn,
       });
       toast("Cita guardada");
@@ -177,11 +246,16 @@ function editAppt(id, preset, onDone) {
     },
   });
 
-  // autocompletar teléfono al elegir cliente
-  $("#f-client", m).addEventListener("change", () => {
-    const c = clients.find((x) => x.name.toLowerCase() === $("#f-client", m).value.trim().toLowerCase());
+  // mostrar campo de nombre al elegir "Nuevo cliente" y autocompletar teléfono al elegir uno existente
+  const selEl = $("#f-client-sel", m);
+  const syncClient = () => {
+    const v = selEl.value;
+    $("#f-newclient-wrap", m).hidden = v !== "__new__";
+    if (v === "__new__") { $("#f-newname", m).focus(); return; }
+    const c = v && v !== "__keep__" ? getClient(v) : null;
     if (c && !$("#f-phone", m).value) $("#f-phone", m).value = c.phone || "";
-  });
+  };
+  selEl.addEventListener("change", syncClient);
   // al cambiar la fecha, ajusta el recordatorio por defecto (futura sí / pasada no)
   $("#f-date", m).addEventListener("change", () => { $("#f-remind", m).checked = $("#f-date", m).value >= todayStr(); });
   const cont = $("#f-items", m);
