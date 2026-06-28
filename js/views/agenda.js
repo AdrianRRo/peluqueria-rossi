@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=15";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=15";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=16";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=16";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -223,8 +223,8 @@ function editAppt(id, preset, onDone) {
       });
       toast("Cita guardada");
       onDone && onDone();
-      // recordatorio solo al CREAR una cita futura y con la opción marcada
-      if (!id && remindOn && saved.date >= todayStr()) remind(saved);
+      // recordatorio solo al CREAR una cita futura, con la opción marcada y si el día NO está cerrado
+      if (!id && remindOn && saved.date >= todayStr() && !closedInfo(saved.date)) remind(saved);
     },
   });
 

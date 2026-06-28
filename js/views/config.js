@@ -1,5 +1,5 @@
-import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=15";
-import { getClosedWeekdays, setClosedWeekdays, listVacations, addVacation, deleteVacation } from "../store.js?v=15";
+import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=16";
+import { getClosedWeekdays, setClosedWeekdays, listVacations, addVacation, deleteVacation } from "../store.js?v=16";
 
 // orden de visualización lun→dom; el valor es el getDay() de JS (0=domingo)
 const WEEKDAYS = [[1, "Lunes"], [2, "Martes"], [3, "Miércoles"], [4, "Jueves"], [5, "Viernes"], [6, "Sábado"], [0, "Domingo"]];

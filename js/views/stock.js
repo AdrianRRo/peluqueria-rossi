@@ -1,5 +1,5 @@
-import { $, esc, eur, toast, openModal } from "../util.js?v=15";
-import { listStock, isLow, adjustStock, setStockValues } from "../store.js?v=15";
+import { $, esc, eur, toast, openModal } from "../util.js?v=16";
+import { listStock, isLow, adjustStock, setStockValues } from "../store.js?v=16";
 
 export function renderStock(root) {
   const items = listStock();
