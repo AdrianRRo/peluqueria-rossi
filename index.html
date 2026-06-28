@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Peluquería Rossi — Gestión de turnos</title>
+  <meta name="description" content="Peluquería Rossi — gestión de turnos con recordatorios por WhatsApp." />
+  <meta name="theme-color" content="#1c1420" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='78' font-size='80'%3E%E2%9C%82%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===== LOGIN ===== -->
+  <section id="login-view" class="login-wrap">
+    <div class="login-card">
+      <div class="brand">
+        <span class="brand-emoji">✂️</span>
+        <h1>Peluquería <span class="accent">Rossi</span></h1>
+        <p class="tagline">Gestión de turnos</p>
+      </div>
+      <form id="login-form" autocomplete="off">
+        <label>Usuario
+          <input type="text" id="login-user" placeholder="usuario" required />
+        </label>
+        <label>Contraseña
+          <input type="password" id="login-pass" placeholder="••••••••" required />
+        </label>
+        <p id="login-error" class="login-error" hidden>Usuario o contraseña incorrectos.</p>
+        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      </form>
+      <p class="login-hint">Acceso de demostración: <b>rossi</b> / <b>rossi2026</b></p>
+    </div>
+  </section>
+
+  <!-- ===== APP ===== -->
+  <div id="app-view" hidden>
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="brand-emoji">✂️</span>
+        <strong>Peluquería <span class="accent">Rossi</span></strong>
+      </div>
+      <nav class="tabs">
+        <button class="tab active" data-tab="turnos">Turnos</button>
+        <button class="tab" data-tab="clientes">Clientes</button>
+      </nav>
+      <button id="logout" class="btn btn-ghost btn-sm">Salir</button>
+    </header>
+
+    <main class="container">
+      <!-- TURNOS -->
+      <section id="tab-turnos" class="tab-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Turnos</h2>
+            <p class="muted" id="day-label"></p>
+          </div>
+          <div class="panel-actions">
+            <input type="date" id="date-filter" class="input" />
+            <button class="btn btn-primary" id="new-appt">+ Nuevo turno</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span class="stat-num" id="st-total">0</span><span class="stat-lbl">turnos del día</span></div>
+          <div class="stat"><span class="stat-num" id="st-pend">0</span><span class="stat-lbl">pendientes</span></div>
+          <div class="stat"><span class="stat-num" id="st-done">0</span><span class="stat-lbl">completados</span></div>
+        </div>
+
+        <div id="appt-list" class="list"></div>
+        <p id="appt-empty" class="empty" hidden>No hay turnos para este día.</p>
+      </section>
+
+      <!-- CLIENTES -->
+      <section id="tab-clientes" class="tab-panel" hidden>
+        <div class="panel-head">
+          <h2>Clientes</h2>
+          <button class="btn btn-primary" id="new-client">+ Nuevo cliente</button>
+        </div>
+        <div id="client-list" class="list"></div>
+        <p id="client-empty" class="empty" hidden>Todavía no hay clientes.</p>
+      </section>
+    </main>
+  </div>
+
+  <!-- ===== MODAL ===== -->
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 id="modal-title">Nuevo turno</h3>
+      <form id="modal-form"></form>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="modal-cancel" type="button">Cancelar</button>
+        <button class="btn btn-primary" id="modal-save" type="button">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
