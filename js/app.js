@@ -1,12 +1,12 @@
-import { $, $$ } from "./util.js?v=12";
-import { getSettings, setSetting } from "./store.js?v=12";
-import { renderAgenda } from "./views/agenda.js?v=12";
-import { renderClientes } from "./views/clientes.js?v=12";
-import { renderProductos } from "./views/productos.js?v=12";
-import { renderStock } from "./views/stock.js?v=12";
-import { renderStats } from "./views/stats.js?v=12";
-import { renderFacturacion } from "./views/facturacion.js?v=12";
-import { renderVentas } from "./views/ventas.js?v=12";
+import { $, $$ } from "./util.js?v=13";
+import { getSettings, setSetting } from "./store.js?v=13";
+import { renderAgenda } from "./views/agenda.js?v=13";
+import { renderClientes } from "./views/clientes.js?v=13";
+import { renderProductos } from "./views/productos.js?v=13";
+import { renderStock } from "./views/stock.js?v=13";
+import { renderStats } from "./views/stats.js?v=13";
+import { renderFacturacion } from "./views/facturacion.js?v=13";
+import { renderVentas } from "./views/ventas.js?v=13";
 
 const AUTH = { user: "rossi", pass: "rossi2026" };
 const SES = "pr_session";

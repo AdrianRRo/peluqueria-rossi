@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=12";
-import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=12";
+import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=13";
+import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=13";
 
 export function renderVentas(root) {
   const products = listProducts(true).filter((p) => p.category === "producto");

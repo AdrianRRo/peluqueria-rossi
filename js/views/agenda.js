@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=12";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, listVacations, addVacation, deleteVacation, vacationOn } from "../store.js?v=12";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=13";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, listVacations, addVacation, deleteVacation, vacationOn } from "../store.js?v=13";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -81,7 +81,7 @@ function drawDay(root) {
     const row = document.createElement("div");
     row.className = "row";
     row.innerHTML = `
-      <div class="time-badge"><b>${esc(a.time)}</b><span>${a.durationMin || 30}'</span></div>
+      <div class="time-badge"><b>${esc(a.time)}</b><span>${esc(endOf(a))}</span></div>
       <div class="row-main">
         <h4>${esc(a.clientName)} <span class="tag s-${a.status}">${a.status.replace("_", " ")}</span></h4>
         <p>${esc(detail)}${amount}</p>
@@ -103,6 +103,10 @@ function drawDay(root) {
 }
 
 function clampH(time) { return Math.min(Math.max(parseInt(time.split(":")[0], 10) || START_H, START_H), END_H - 1); }
+function toMin(t) { const [h, m] = (t || "0:0").split(":").map(Number); return (h || 0) * 60 + (m || 0); }
+function addMin(t, mins) { const v = toMin(t) + (mins || 0); const h = Math.floor(v / 60) % 24, m = v % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; }
+function diffMin(a, b) { return toMin(b) - toMin(a); }
+function endOf(a) { return a.endTime || addMin(a.time, a.durationMin || 30); }
 
 function chipHTML(a) {
   const svc = (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", ");
@@ -191,8 +195,8 @@ function editAppt(id, preset, onDone) {
       </div>
       <div class="row-2">
         <label>Fecha <input id="f-date" type="date" value="${esc(a.date || todayStr())}" /></label>
-        <label>Hora <input id="f-time" type="time" value="${esc(a.time || "10:00")}" /></label>
-        <label>Duración (min) <input id="f-dur" type="number" min="5" step="5" value="${a.durationMin || 30}" /></label>
+        <label>Desde <input id="f-time" type="time" value="${esc(a.time || "10:00")}" /></label>
+        <label>Hasta <input id="f-end" type="time" value="${esc(a.endTime || addMin(a.time || "10:00", a.durationMin || 30))}" /></label>
       </div>
       <div class="field">
         <label>Servicios previstos</label>
@@ -231,12 +235,16 @@ function editAppt(id, preset, onDone) {
       }
       const date = $("#f-date", mm).value;
       if (vacationOn(date) && !confirmDialog("Ese día está marcado como cerrado (vacaciones). ¿Crear la cita igualmente?")) return false;
+      const time = $("#f-time", mm).value;
+      const endTime = $("#f-end", mm).value;
+      if (endTime && diffMin(time, endTime) <= 0) { toast("La hora 'hasta' debe ser posterior a la de inicio"); return false; }
+      const durationMin = endTime ? diffMin(time, endTime) : (a.durationMin || 30);
       const items = readLines(mm.querySelector("#f-items"), false);
       const remindOn = $("#f-remind", mm).checked;
       const saved = upsertAppt({
         id, clientId, clientName,
         phone, status: $("#f-status", mm).value,
-        date, time: $("#f-time", mm).value, durationMin: Number($("#f-dur", mm).value) || 30,
+        date, time, endTime: endTime || null, durationMin,
         items, note: $("#f-note", mm).value.trim(), sale: a.sale, remind: remindOn,
       });
       toast("Cita guardada");

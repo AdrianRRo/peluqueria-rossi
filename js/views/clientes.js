@@ -1,5 +1,5 @@
-import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=12";
-import { listClients, upsertClient, deleteClient, listAppointments } from "../store.js?v=12";
+import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=13";
+import { listClients, upsertClient, deleteClient, listAppointments } from "../store.js?v=13";
 
 export function renderClientes(root) {
   const clients = listClients();
