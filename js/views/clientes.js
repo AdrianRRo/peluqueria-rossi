@@ -1,5 +1,5 @@
-import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=4";
-import { listClients, upsertClient, deleteClient, listAppointments } from "../store.js?v=4";
+import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=5";
+import { listClients, upsertClient, deleteClient, listAppointments } from "../store.js?v=5";
 
 export function renderClientes(root) {
   const clients = listClients();
@@ -82,9 +82,12 @@ export function viewClient(id, onChange) {
   const completed = appts.filter((a) => a.status === "completada" && a.sale);
   const spent = completed.reduce((s, a) => s + a.sale.total, 0);
   const hist = appts.slice(0, 12).map((a) => {
-    const detail = a.sale ? a.sale.lines.map((l) => l.name).join(", ") : (a.items || []).map((i) => i.name).join(", ");
+    const parts = a.sale
+      ? a.sale.lines.map((l) => `${l.name}${(l.qty || 1) > 1 ? ` ×${l.qty}` : ""} (${eur(l.price * (l.qty || 1))})`)
+      : (a.items || []).map((i) => i.name);
+    const detail = parts.join(" · ");
     const amount = a.sale ? eur(a.sale.total) : "";
-    return `<tr><td>${fmtShort(a.date)} ${esc(a.time)}</td><td>${esc(detail || "—")}</td><td><span class="tag s-${a.status}">${a.status.replace("_", " ")}</span></td><td class="num">${amount}</td></tr>`;
+    return `<tr><td style="white-space:nowrap">${fmtShort(a.date)} ${esc(a.time)}</td><td>${esc(detail || "—")}</td><td><span class="tag s-${a.status}">${a.status.replace("_", " ")}</span></td><td class="num">${amount}</td></tr>`;
   }).join("");
   openModal({
     title: c.name,
@@ -98,8 +101,8 @@ export function viewClient(id, onChange) {
           <div class="kpi accent"><div class="v">${eur(spent)}</div><div class="l">gastado total</div></div>
           <div class="kpi"><div class="v">${completed.length ? eur(spent / completed.length) : eur(0)}</div><div class="l">ticket medio</div></div>
         </div>
-        <h3 style="margin-top:8px;font-size:1rem">Historial</h3>
-        <table class="tbl"><thead><tr><th>Fecha</th><th>Concepto</th><th>Estado</th><th class="num">Importe</th></tr></thead>
+        <h3 style="margin-top:8px;font-size:1rem">Últimas citas <span class="muted" style="font-weight:400;font-size:.8rem">· qué se le hizo</span></h3>
+        <table class="tbl"><thead><tr><th>Fecha</th><th>Servicios realizados</th><th>Estado</th><th class="num">Importe</th></tr></thead>
         <tbody>${hist || `<tr><td colspan="4" class="muted">Sin citas todavía.</td></tr>`}</tbody></table>
       </div>`,
     extra: [
