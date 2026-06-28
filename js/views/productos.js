@@ -1,11 +1,11 @@
-import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=11";
-import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=11";
+import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=12";
+import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=12";
 
 export function renderProductos(root) {
   const prods = listProducts();
   root.innerHTML = `
     <div class="page-head">
-      <div><h2>Productos y servicios</h2><p class="sub">${prods.length} en catálogo · el coste sirve para calcular el beneficio</p></div>
+      <div><h2>Servicios</h2><p class="sub">${prods.length} en catálogo (servicios y productos) · el coste sirve para calcular el beneficio</p></div>
       <button class="btn btn-primary" id="pr-new">+ Nuevo</button>
     </div>
     <div class="card" style="padding:6px 0">

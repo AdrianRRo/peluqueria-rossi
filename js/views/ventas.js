@@ -1,8 +1,8 @@
-import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=11";
-import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=11";
+import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=12";
+import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=12";
 
 export function renderVentas(root) {
-  const products = listProducts(true);
+  const products = listProducts(true).filter((p) => p.category === "producto");
   const clients = listClients();
   root.innerHTML = `
     <div class="page-head">
