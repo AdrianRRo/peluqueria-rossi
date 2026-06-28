@@ -1,5 +1,5 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js";
+import { uid, todayStr, addDays } from "./util.js?v=4";
 
 const KEY = "pr_state_v3";
 

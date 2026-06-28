@@ -1,5 +1,7 @@
-import { $, $$, esc, eur, toast, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort } from "../util.js";
-import { statsBetween, apptsBetween, listClients, listProducts, getClient } from "../store.js";
+import { $, $$, esc, eur, toast, openModal, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=4";
+import { statsBetween, apptsBetween, apptsByDate, listClients, listProducts, getClient } from "../store.js?v=4";
+
+let calMonth = monthStart(todayStr());
 
 let preset = "mes";
 let customFrom = todayStr(), customTo = todayStr();
@@ -44,7 +46,7 @@ export function renderStats(root) {
 
     <div class="grid-2">
       <div class="section-card">
-        <h3>Evolución de ingresos</h3>
+        <h3>Ingresos por día <span class="muted" style="font-weight:400;font-size:.8rem">· pulsa un día para ver el detalle</span></h3>
         <div id="st-chart"></div>
       </div>
       <div class="section-card">
@@ -76,8 +78,9 @@ export function renderStats(root) {
   }
   $("#st-export", root).onclick = () => exportExcel(from, to);
 
-  // chart (por día si <=31 días, si no por mes)
-  drawChart($("#st-chart", root), from, to);
+  // calendario de ingresos (se navega por mes; inicia en el mes del periodo)
+  if (preset !== "custom") calMonth = monthStart(from);
+  renderCalendar($("#st-chart", root));
 
   // tabla conceptos
   const items = Object.entries(s.perItem).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.revenue - a.revenue);
@@ -88,28 +91,58 @@ export function renderStats(root) {
   // tabla por día
   const days = Object.entries(s.perDay).map(([d, v]) => ({ d, ...v })).sort((a, b) => b.d.localeCompare(a.d));
   $("#st-days", root).innerHTML = days.length
-    ? days.map((x) => `<tr><td>${fmtShort(x.d)}</td><td class="num">${x.count}</td><td class="num">${eur(x.revenue)}</td><td class="num neg">${eur(x.cost)}</td><td class="num pos">${eur(x.revenue - x.cost)}</td></tr>`).join("")
+    ? days.map((x) => `<tr data-d="${x.d}" style="cursor:pointer"><td>${fmtShort(x.d)}</td><td class="num">${x.count}</td><td class="num">${eur(x.revenue)}</td><td class="num neg">${eur(x.cost)}</td><td class="num pos">${eur(x.revenue - x.cost)}</td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">Sin datos en este periodo.</td></tr>`;
+  $$("#st-days tr[data-d]", root).forEach((tr) => tr.onclick = () => dayDetail(tr.dataset.d));
 }
 
-function drawChart(host, from, to) {
-  const days = Math.round((parseDate(to) - parseDate(from)) / 86400000) + 1;
-  const buckets = [];
-  if (days <= 31) {
-    for (let i = 0; i < days; i++) { const d = addDays(from, i); buckets.push({ label: fmtShort(d), from: d, to: d }); }
-  } else {
-    let cur = monthStart(from);
-    while (cur <= to) {
-      const dd = parseDate(cur); const end = dateToStr(new Date(dd.getFullYear(), dd.getMonth() + 1, 0));
-      buckets.push({ label: dd.toLocaleDateString("es-ES", { month: "short" }), from: cur, to: end > to ? to : end });
-      cur = dateToStr(new Date(dd.getFullYear(), dd.getMonth() + 1, 1));
-    }
+// ---------- calendario de ingresos ----------
+function renderCalendar(host) {
+  const d0 = parseDate(calMonth);
+  const year = d0.getFullYear(), month = d0.getMonth();
+  const lead = (d0.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+  const vals = {}; let max = 0;
+  for (let i = 1; i <= daysInMonth; i++) { const ds = dateToStr(new Date(year, month, i)); const v = statsBetween(ds, ds).revenue; vals[ds] = v; if (v > max) max = v; }
+  const dow = ["L", "M", "X", "J", "V", "S", "D"];
+  let cells = dow.map((x) => `<div class="cm-dow">${x}</div>`).join("");
+  for (let i = 0; i < lead; i++) cells += `<div></div>`;
+  for (let i = 1; i <= daysInMonth; i++) {
+    const ds = dateToStr(new Date(year, month, i)); const v = vals[ds];
+    const lvl = v <= 0 ? 0 : Math.min(4, Math.ceil((v / max) * 4));
+    cells += `<button class="cm-day lvl-${lvl} ${ds === today ? "today" : ""}" data-date="${ds}"><span class="cm-n">${i}</span>${v > 0 ? `<span class="cm-v">${Math.round(v)}€</span>` : ""}</button>`;
   }
-  const data = buckets.map((b) => ({ label: b.label, v: statsBetween(b.from, b.to).revenue }));
-  const max = Math.max(1, ...data.map((d) => d.v));
-  host.innerHTML = data.map((d) =>
-    `<div class="bar-row"><span class="muted">${esc(d.label)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round((d.v / max) * 100)}%"></div></div><span>${eur(d.v)}</span></div>`
-  ).join("") || `<p class="muted">Sin datos.</p>`;
+  host.innerHTML = `
+    <div class="cm-head">
+      <button class="icon-btn" data-cm="-1">‹</button>
+      <b style="text-transform:capitalize">${d0.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</b>
+      <button class="icon-btn" data-cm="1">›</button>
+    </div>
+    <div class="cm-grid">${cells}</div>`;
+  host.querySelector('[data-cm="-1"]').onclick = () => { calMonth = dateToStr(new Date(year, month - 1, 1)); renderCalendar(host); };
+  host.querySelector('[data-cm="1"]').onclick = () => { calMonth = dateToStr(new Date(year, month + 1, 1)); renderCalendar(host); };
+  host.querySelectorAll(".cm-day").forEach((b) => b.onclick = () => dayDetail(b.dataset.date));
+}
+
+// ---------- detalle de un día ----------
+function dayDetail(date) {
+  const appts = apptsByDate(date).filter((a) => a.status === "completada" && a.sale);
+  let revenue = 0, cost = 0;
+  const blocks = appts.map((a) => {
+    revenue += a.sale.total; cost += a.sale.cost;
+    const lines = a.sale.lines.map((l) => `<tr><td>${esc(l.name)}</td><td class="num">${l.qty || 1}</td><td class="num">${eur(l.price)}</td><td class="num">${eur(l.price * (l.qty || 1))}</td></tr>`).join("");
+    return `<div class="section-card" style="padding:12px;margin-bottom:10px">
+      <b>${esc(a.time)} · ${esc(a.clientName)}</b>
+      <table class="tbl" style="margin-top:6px"><thead><tr><th>Concepto</th><th class="num">Uds</th><th class="num">Precio</th><th class="num">Subtotal</th></tr></thead><tbody>${lines}</tbody></table>
+    </div>`;
+  }).join("");
+  openModal({
+    title: fmtLong(date),
+    body: appts.length
+      ? `${blocks}<div class="checkout-total"><span>Total cobrado · beneficio ${eur(revenue - cost)}</span><span class="big">${eur(revenue)}</span></div>`
+      : `<p class="empty">No hubo citas completadas este día.</p>`,
+  });
 }
 
 // ---------- Export ----------

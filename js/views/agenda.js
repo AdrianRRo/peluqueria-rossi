@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct } from "../store.js";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=4";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, listProducts, getProduct } from "../store.js?v=4";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -123,6 +123,8 @@ function editAppt(id, preset, onDone) {
   const a = id ? { ...getAppt(id) } : { status: "pendiente", durationMin: 30, items: [], ...preset };
   const clients = listClients();
   const services = listProducts(true);
+  const isPast = (a.date || todayStr()) < todayStr();
+  const remindDefault = a.remind != null ? a.remind : !isPast;
   const body = `
     <div class="form-grid">
       <label>Cliente
@@ -144,6 +146,7 @@ function editAppt(id, preset, onDone) {
         <div id="f-items"></div>
         <button type="button" class="btn btn-soft btn-sm" id="add-item">+ Añadir servicio</button>
       </div>
+      <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="f-remind" ${remindDefault ? "checked" : ""} style="width:auto" /> Enviar recordatorio por WhatsApp al crear (citas futuras)</label>
       <label>Nota <textarea id="f-note" placeholder="Observaciones...">${esc(a.note || "")}</textarea></label>
     </div>`;
 
@@ -160,14 +163,17 @@ function editAppt(id, preset, onDone) {
       if (!name) { toast("Indica el cliente"); return false; }
       const items = readLines(mm.querySelector("#f-items"), false);
       const cli = clients.find((c) => c.name.toLowerCase() === name.toLowerCase());
-      upsertAppt({
+      const remindOn = $("#f-remind", mm).checked;
+      const saved = upsertAppt({
         id, clientId: cli ? cli.id : (a.clientId || null), clientName: name,
         phone: $("#f-phone", mm).value.trim(), status: $("#f-status", mm).value,
         date: $("#f-date", mm).value, time: $("#f-time", mm).value, durationMin: Number($("#f-dur", mm).value) || 30,
-        items, note: $("#f-note", mm).value.trim(), sale: a.sale,
+        items, note: $("#f-note", mm).value.trim(), sale: a.sale, remind: remindOn,
       });
       toast("Cita guardada");
       onDone && onDone();
+      // recordatorio solo al CREAR una cita futura y con la opción marcada
+      if (!id && remindOn && saved.date >= todayStr()) remind(saved);
     },
   });
 
@@ -176,6 +182,8 @@ function editAppt(id, preset, onDone) {
     const c = clients.find((x) => x.name.toLowerCase() === $("#f-client", m).value.trim().toLowerCase());
     if (c && !$("#f-phone", m).value) $("#f-phone", m).value = c.phone || "";
   });
+  // al cambiar la fecha, ajusta el recordatorio por defecto (futura sí / pasada no)
+  $("#f-date", m).addEventListener("change", () => { $("#f-remind", m).checked = $("#f-date", m).value >= todayStr(); });
   const cont = $("#f-items", m);
   (a.items && a.items.length ? a.items : []).forEach((it) => addLine(cont, services, it, false));
   $("#add-item", m).onclick = () => addLine(cont, services, null, false);

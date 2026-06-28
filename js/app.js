@@ -1,9 +1,9 @@
-import { $, $$ } from "./util.js";
-import { getSettings, setSetting } from "./store.js";
-import { renderAgenda } from "./views/agenda.js";
-import { renderClientes } from "./views/clientes.js";
-import { renderProductos } from "./views/productos.js";
-import { renderStats } from "./views/stats.js";
+import { $, $$ } from "./util.js?v=4";
+import { getSettings, setSetting } from "./store.js?v=4";
+import { renderAgenda } from "./views/agenda.js?v=4";
+import { renderClientes } from "./views/clientes.js?v=4";
+import { renderProductos } from "./views/productos.js?v=4";
+import { renderStats } from "./views/stats.js?v=4";
 
 const AUTH = { user: "rossi", pass: "rossi2026" };
 const SES = "pr_session";
