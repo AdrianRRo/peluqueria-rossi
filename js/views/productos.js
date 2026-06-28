@@ -1,5 +1,5 @@
-import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=16";
-import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=16";
+import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=17";
+import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=17";
 
 export function renderProductos(root) {
   const prods = listProducts();

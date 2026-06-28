@@ -1,5 +1,6 @@
-// ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays, parseDate } from "./util.js?v=16";
+// ====== capa de datos (backend + caché localStorage) ======
+import { uid, todayStr, addDays, parseDate } from "./util.js?v=17";
+import { getToken, apiPutState } from "./api.js?v=17";
 
 const KEY = "pr_state_v4";
 
@@ -21,7 +22,29 @@ function load() {
   localStorage.setItem(KEY, JSON.stringify(s));
   return s;
 }
-function persist() { localStorage.setItem(KEY, JSON.stringify(state)); }
+// Sustituye el estado en memoria por el del servidor (al iniciar sesión/cargar).
+export function hydrate(remote) {
+  if (remote && typeof remote === "object" && Array.isArray(remote.appointments)) {
+    state = {
+      clients: remote.clients || [],
+      products: remote.products || [],
+      appointments: remote.appointments || [],
+      vacations: remote.vacations || [],
+      settings: remote.settings || { theme: "light", closedWeekdays: [0, 1] },
+    };
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+}
+
+// Empuje al backend con debounce: cada cambio se guarda en caché local y se
+// sincroniza al servidor (si hay sesión). Si falla la red, la caché local cubre.
+let _syncT;
+function pushRemote() {
+  if (!getToken()) return;
+  clearTimeout(_syncT);
+  _syncT = setTimeout(() => { apiPutState(state).catch(() => {}); }, 800);
+}
+function persist() { localStorage.setItem(KEY, JSON.stringify(state)); pushRemote(); }
 
 // ---- settings ----
 export const getSettings = () => state.settings || (state.settings = { theme: "light" });

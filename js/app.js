@@ -1,16 +1,14 @@
-import { $, $$ } from "./util.js?v=16";
-import { getSettings, setSetting } from "./store.js?v=16";
-import { renderAgenda } from "./views/agenda.js?v=16";
-import { renderClientes } from "./views/clientes.js?v=16";
-import { renderProductos } from "./views/productos.js?v=16";
-import { renderStock } from "./views/stock.js?v=16";
-import { renderStats } from "./views/stats.js?v=16";
-import { renderFacturacion } from "./views/facturacion.js?v=16";
-import { renderVentas } from "./views/ventas.js?v=16";
-import { renderConfig } from "./views/config.js?v=16";
-
-const AUTH = { user: "rossi", pass: "rossi2026" };
-const SES = "pr_session";
+import { $, $$ } from "./util.js?v=17";
+import { getSettings, setSetting, hydrate } from "./store.js?v=17";
+import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=17";
+import { renderAgenda } from "./views/agenda.js?v=17";
+import { renderClientes } from "./views/clientes.js?v=17";
+import { renderProductos } from "./views/productos.js?v=17";
+import { renderStock } from "./views/stock.js?v=17";
+import { renderStats } from "./views/stats.js?v=17";
+import { renderFacturacion } from "./views/facturacion.js?v=17";
+import { renderVentas } from "./views/ventas.js?v=17";
+import { renderConfig } from "./views/config.js?v=17";
 
 const ROUTES = {
   "#/agenda": renderAgenda,
@@ -53,23 +51,45 @@ function showLogin() {
   $("#login-view").hidden = false;
 }
 
-$("#login-form").addEventListener("submit", (e) => {
+// Carga el estado desde el servidor y lo aplica. Devuelve "ok" | "auth" | "net".
+async function loadRemote() {
+  try {
+    hydrate(await apiGetState());
+    applyTheme(getSettings().theme || "light");
+    return "ok";
+  } catch (e) {
+    return String(e.message) === "401" ? "auth" : "net";
+  }
+}
+
+$("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if ($("#login-user").value.trim() === AUTH.user && $("#login-pass").value === AUTH.pass) {
-    sessionStorage.setItem(SES, "1");
-    $("#login-error").hidden = true;
+  $("#login-error").hidden = true;
+  const btn = $("#login-form button[type=submit]");
+  if (btn) { btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = "Entrando…"; }
+  try {
+    await apiLogin($("#login-user").value.trim(), $("#login-pass").value);
+    await loadRemote();
     showApp();
-  } else {
+  } catch (err) {
     $("#login-error").hidden = false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || "Entrar"; }
   }
 });
-$("#logout").addEventListener("click", () => { sessionStorage.removeItem(SES); $("#login-form").reset(); showLogin(); });
+$("#logout").addEventListener("click", () => { clearToken(); $("#login-form").reset(); showLogin(); });
 
 $("#theme-toggle").addEventListener("click", () => {
   const next = (getSettings().theme === "dark") ? "light" : "dark";
   setSetting("theme", next); applyTheme(next);
 });
 
-window.addEventListener("hashchange", () => { if (sessionStorage.getItem(SES) === "1") route(); });
+window.addEventListener("hashchange", () => { if (getToken()) route(); });
 
-if (sessionStorage.getItem(SES) === "1") showApp(); else showLogin();
+// Arranque: si hay sesión, intenta cargar del servidor; si el token caducó,
+// vuelve al login; si solo falla la red, sigue con la caché local (offline).
+if (getToken()) {
+  loadRemote().then((st) => { if (st === "auth") showLogin(); else showApp(); });
+} else {
+  showLogin();
+}
