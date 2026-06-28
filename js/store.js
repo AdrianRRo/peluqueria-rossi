@@ -1,46 +1,14 @@
 // ====== capa de datos (localStorage) ======
-import { uid, todayStr, addDays } from "./util.js?v=13";
+import { uid, todayStr, addDays, parseDate } from "./util.js?v=14";
 
-const KEY = "pr_state_v3";
+const KEY = "pr_state_v4";
 
 const SERVICE = "servicio";
 const PRODUCT = "producto";
 
+// Empezamos de cero: sin clientes, productos ni citas. El negocio configura todo.
 function seed() {
-  const t = todayStr();
-  const products = [
-    { id: uid(), name: "Corte mujer", category: SERVICE, price: 20, cost: 2, active: true },
-    { id: uid(), name: "Corte hombre", category: SERVICE, price: 13, cost: 1.5, active: true },
-    { id: uid(), name: "Peinado", category: SERVICE, price: 25, cost: 3, active: true },
-    { id: uid(), name: "Tinte", category: SERVICE, price: 45, cost: 12, active: true },
-    { id: uid(), name: "Mechas", category: SERVICE, price: 60, cost: 18, active: true },
-    { id: uid(), name: "Barba", category: SERVICE, price: 10, cost: 1, active: true },
-    { id: uid(), name: "Tratamiento hidratación", category: SERVICE, price: 30, cost: 8, active: true },
-    { id: uid(), name: "Champú profesional", category: PRODUCT, price: 14, cost: 6, active: true, stock: 12, minStock: 5 },
-    { id: uid(), name: "Mascarilla capilar", category: PRODUCT, price: 16, cost: 7, active: true, stock: 4, minStock: 5 },
-  ];
-  const byName = (n) => products.find((p) => p.name === n);
-  const clients = [
-    { id: uid(), name: "María López", phone: "+34611223344", email: "maria@example.com", hairType: "Largo / liso", notes: "Prefiere tinte sin amoníaco.", createdAt: t },
-    { id: uid(), name: "Carlos Ruiz", phone: "+34622334455", email: "", hairType: "Corto", notes: "", createdAt: t },
-    { id: uid(), name: "Lucía Fernández", phone: "+34633445566", email: "lucia@example.com", hairType: "Media melena / rizado", notes: "Alergia a un tinte concreto.", createdAt: t },
-  ];
-  const mkItem = (p) => ({ productId: p.id, name: p.name, price: p.price });
-  const appointments = [
-    { id: uid(), date: t, time: "10:00", clientId: clients[0].id, clientName: clients[0].name, phone: clients[0].phone, items: [mkItem(byName("Corte mujer"))], durationMin: 45, status: "confirmada", note: "" },
-    { id: uid(), date: t, time: "11:30", clientId: clients[1].id, clientName: clients[1].name, phone: clients[1].phone, items: [mkItem(byName("Corte hombre")), mkItem(byName("Barba"))], durationMin: 30, status: "pendiente", note: "" },
-    { id: uid(), date: addDays(t, 1), time: "17:00", clientId: clients[2].id, clientName: clients[2].name, phone: clients[2].phone, items: [mkItem(byName("Tinte"))], durationMin: 90, status: "confirmada", note: "" },
-  ];
-  // un par de citas completadas en días pasados para que las estadísticas tengan datos
-  const past = (s, p, method) => ({
-    id: uid(), date: s, time: "12:00", clientId: clients[0].id, clientName: clients[0].name, phone: clients[0].phone,
-    items: [], durationMin: 45, status: "completada", note: "",
-    sale: { completedAt: s, method, lines: [{ name: p.name, qty: 1, price: p.price, cost: p.cost }], total: p.price, cost: p.cost, profit: p.price - p.cost },
-  });
-  appointments.push(past(addDays(t, -1), byName("Mechas"), "tarjeta"));
-  appointments.push(past(addDays(t, -2), byName("Tinte"), "efectivo"));
-  appointments.push(past(addDays(t, -2), byName("Corte mujer"), "tarjeta"));
-  return { clients, products, appointments, settings: { theme: "light" } };
+  return { clients: [], products: [], appointments: [], vacations: [], settings: { theme: "light", closedWeekdays: [0, 1] } };
 }
 
 let state = load();
@@ -77,6 +45,19 @@ export const listVacations = () => [...(state.vacations || [])].sort((a, b) => a
 export function addVacation(from, to, note) { state.vacations ||= []; const v = { id: uid(), from, to: to || from, note: note || "" }; state.vacations.push(v); persist(); return v; }
 export function deleteVacation(id) { state.vacations = (state.vacations || []).filter((v) => v.id !== id); persist(); }
 export function vacationOn(date) { return (state.vacations || []).find((v) => date >= v.from && date <= v.to) || null; }
+
+// ---- días de cierre semanal (configurable). 0=domingo ... 6=sábado ----
+const WD_NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+export const getClosedWeekdays = () => getSettings().closedWeekdays || [];
+export function setClosedWeekdays(arr) { getSettings().closedWeekdays = (arr || []).map(Number); persist(); }
+// devuelve el motivo de cierre de un día (vacaciones o cierre semanal) o null
+export function closedInfo(date) {
+  const v = vacationOn(date);
+  if (v) return { type: "vac", label: v.note || "Vacaciones" };
+  const wd = parseDate(date).getDay();
+  if ((getSettings().closedWeekdays || []).includes(wd)) return { type: "weekly", label: `Cerrado (${WD_NAMES[wd]})` };
+  return null;
+}
 
 // ---- clientes ----
 export const listClients = () => [...state.clients].sort((a, b) => a.name.localeCompare(b.name));

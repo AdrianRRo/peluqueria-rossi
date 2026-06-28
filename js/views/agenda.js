@@ -1,5 +1,5 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=13";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, listVacations, addVacation, deleteVacation, vacationOn } from "../store.js?v=13";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=14";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=14";
 
 const START_H = 9, END_H = 21;
 const STATUS = [
@@ -23,7 +23,6 @@ export function renderAgenda(root) {
           <button class="btn btn-soft btn-sm" id="ag-today">Hoy</button>
           <button class="icon-btn" id="ag-next">›</button>
         </div>
-        <button class="btn btn-soft" id="ag-vac" title="Días cerrados / vacaciones">🌴 Cerrado</button>
         <button class="btn btn-primary" id="ag-new">+ Nueva cita</button>
       </div>
     </div>
@@ -36,7 +35,6 @@ export function renderAgenda(root) {
   $("#ag-prev", root).onclick = () => { anchor = addDays(anchor, view === "semana" ? -7 : -1); renderAgenda(root); };
   $("#ag-next", root).onclick = () => { anchor = addDays(anchor, view === "semana" ? 7 : 1); renderAgenda(root); };
   $("#ag-today", root).onclick = () => { anchor = todayStr(); renderAgenda(root); };
-  $("#ag-vac", root).onclick = () => manageVacations(() => renderAgenda(root));
   $("#ag-new", root).onclick = () => editAppt(null, { date: anchor, time: "10:00" }, () => renderAgenda(root));
 
   if (view === "semana") drawWeek(root); else drawDay(root);
@@ -47,11 +45,12 @@ function drawWeek(root) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   $("#ag-sub", root).textContent = `${fmtShort(days[0])} – ${fmtShort(days[6])}`;
   const today = todayStr();
-  const vac = {}; days.forEach((d) => (vac[d] = vacationOn(d)));
+  const cl = {}; days.forEach((d) => (cl[d] = closedInfo(d)));
 
   let head = `<div class="cal-corner"></div>`;
   for (const d of days) {
-    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${vac[d] ? "vac" : ""}"><div class="dn">${dowShort(d)}${vac[d] ? " 🌴" : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
+    const c = cl[d];
+    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${c ? "vac" : ""}"><div class="dn">${dowShort(d)}${c ? (c.type === "vac" ? " 🌴" : " ✕") : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
   }
   let rows = "";
   for (let h = START_H; h < END_H; h++) {
@@ -59,7 +58,7 @@ function drawWeek(root) {
     for (const d of days) {
       const items = apptsByDate(d).filter((a) => a.kind !== "venta" && clampH(a.time) === h);
       const chips = items.map((a) => chipHTML(a)).join("");
-      rows += `<div class="cal-cell ${vac[d] ? "vac" : ""}" data-date="${d}" data-hour="${h}" ${vac[d] ? `title="Cerrado: ${esc(vac[d].note || "vacaciones")}"` : ""}>${chips}</div>`;
+      rows += `<div class="cal-cell ${cl[d] ? "vac" : ""}" data-date="${d}" data-hour="${h}" ${cl[d] ? `title="${esc(cl[d].label)}"` : ""}>${chips}</div>`;
     }
   }
   $("#ag-body", root).innerHTML = `<div class="cal"><div class="cal-grid" style="--cols:7">${head}${rows}</div></div>`;
@@ -70,9 +69,9 @@ function drawDay(root) {
   $("#ag-sub", root).textContent = fmtLong(anchor);
   const items = apptsByDate(anchor).filter((a) => a.kind !== "venta");
   const body = $("#ag-body", root);
-  const vac = vacationOn(anchor);
-  const banner = vac ? `<div class="section-card" style="margin-bottom:14px;border-color:var(--accent);background:var(--accent-soft, var(--bg-soft))"><b>🌴 Día cerrado</b> · ${esc(vac.note || "vacaciones")} <span class="muted">— no se dan citas</span></div>` : "";
-  if (!items.length) { body.innerHTML = banner + `<p class="empty">No hay citas este día.${vac ? "" : " Pulsa “+ Nueva cita”."}</p>`; return; }
+  const cl = closedInfo(anchor);
+  const banner = cl ? `<div class="section-card" style="margin-bottom:14px;border-color:var(--accent);background:var(--accent-soft, var(--bg-soft))"><b>${cl.type === "vac" ? "🌴" : "✕"} Día cerrado</b> · ${esc(cl.label)} <span class="muted">— no se dan citas</span></div>` : "";
+  if (!items.length) { body.innerHTML = banner + `<p class="empty">No hay citas este día.${cl ? "" : " Pulsa “+ Nueva cita”."}</p>`; return; }
   const list = document.createElement("div");
   list.className = "list day-list";
   for (const a of items) {
@@ -108,9 +107,19 @@ function addMin(t, mins) { const v = toMin(t) + (mins || 0); const h = Math.floo
 function diffMin(a, b) { return toMin(b) - toMin(a); }
 function endOf(a) { return a.endTime || addMin(a.time, a.durationMin || 30); }
 
+// paleta de fondos pastel (texto oscuro legible en ambos temas)
+const CHIP_BG = ["#fde2e4", "#dfe7fd", "#e2f0cb", "#fff1cc", "#ece2f7", "#d8f3f0", "#ffe0d6", "#dfeffb", "#fbe0ef", "#e6efd9"];
+const STATUS_BORDER = { pendiente: "#c98aa0", confirmada: "#3f7ddc", completada: "#2e9e5b", no_show: "#d99a2b", cancelada: "#9a8fa8" };
+function hashIdx(str, n) { let h = 0; for (let i = 0; i < (str || "").length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0; return h % n; }
+function chipStyle(a) {
+  const bg = CHIP_BG[hashIdx(a.clientName || a.id, CHIP_BG.length)];
+  const bd = STATUS_BORDER[a.status] || "#c98aa0";
+  const txt = a.status === "cancelada" ? "rgba(36,34,45,.6)" : "#241a2d";
+  return `background:${bg};color:${txt};border-left-color:${bd}${a.status === "cancelada" ? ";text-decoration:line-through" : ""}`;
+}
 function chipHTML(a) {
   const svc = (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", ");
-  return `<div class="chip s-${a.status}" data-appt="${a.id}"><b>${esc(a.time)}</b> ${esc(a.clientName)}<br><span class="muted">${esc(svc || "—")}</span></div>`;
+  return `<div class="chip" data-appt="${a.id}" style="${chipStyle(a)}"><b>${esc(a.time)}</b> ${esc(a.clientName)}<br><span style="opacity:.7">${esc(svc || "—")}</span></div>`;
 }
 
 function wireCells(root) {
@@ -118,7 +127,8 @@ function wireCells(root) {
     cell.addEventListener("click", (e) => {
       const chip = e.target.closest("[data-appt]");
       if (chip) { e.stopPropagation(); editAppt(chip.dataset.appt, null, () => renderAgenda(root)); return; }
-      if (vacationOn(cell.dataset.date)) { toast("Día cerrado (vacaciones). Usa 🌴 Cerrado para editarlo."); return; }
+      const cl = closedInfo(cell.dataset.date);
+      if (cl) { toast(`${cl.label}. Cámbialo en Ajustes.`); return; }
       editAppt(null, { date: cell.dataset.date, time: `${String(cell.dataset.hour).padStart(2, "0")}:00` }, () => renderAgenda(root));
     });
   });
@@ -126,45 +136,6 @@ function wireCells(root) {
 
 function remind(a) {
   whatsapp(a.phone, `Hola ${a.clientName}, te recordamos tu cita en Peluquería Rossi el ${fmtLong(a.date)} a las ${a.time}. ¡Te esperamos! ✂️`);
-}
-
-// ---------- vacaciones / días cerrados ----------
-function manageVacations(onDone) {
-  const drawList = (m) => {
-    const list = listVacations();
-    $("#vac-list", m).innerHTML = list.length ? list.map((v) => `
-      <div class="row">
-        <div class="row-main"><h4>${fmtShort(v.from)}${v.to !== v.from ? ` – ${fmtShort(v.to)}` : ""}</h4><p>${esc(v.note || "Cerrado")}</p></div>
-        <div class="row-actions"><button class="icon-btn del" data-del="${v.id}" title="Quitar">🗑</button></div>
-      </div>`).join("") : `<p class="empty">No hay días cerrados.</p>`;
-    $$("[data-del]", m).forEach((b) => (b.onclick = () => { deleteVacation(b.dataset.del); drawList(m); onDone && onDone(); }));
-  };
-  const m = openModal({
-    title: "Vacaciones / días cerrados",
-    saveLabel: "Añadir",
-    body: `
-      <div class="form-grid">
-        <div class="row-2">
-          <label>Desde <input id="vac-from" type="date" value="${todayStr()}" /></label>
-          <label>Hasta <input id="vac-to" type="date" value="${todayStr()}" /></label>
-        </div>
-        <label>Motivo (opcional) <input id="vac-note" placeholder="Vacaciones, festivo, cierre..." /></label>
-        <div class="field"><label>Días cerrados</label><div class="list" id="vac-list"></div></div>
-        <p class="muted" style="font-size:.78rem">En esos días no se podrán crear citas desde el calendario.</p>
-      </div>`,
-    onSave: (mm) => {
-      const from = $("#vac-from", mm).value;
-      const to = $("#vac-to", mm).value || from;
-      if (!from) { toast("Indica la fecha"); return false; }
-      if (to < from) { toast("La fecha 'hasta' es anterior a 'desde'"); return false; }
-      addVacation(from, to, $("#vac-note", mm).value.trim());
-      toast("Días cerrados añadidos");
-      drawList(mm);
-      onDone && onDone();
-      return false; // mantener abierto para seguir gestionando
-    },
-  });
-  drawList(m);
 }
 
 // ---------- editor de cita ----------
@@ -234,7 +205,8 @@ function editAppt(id, preset, onDone) {
         toast("Selecciona un cliente o crea uno nuevo"); return false;
       }
       const date = $("#f-date", mm).value;
-      if (vacationOn(date) && !confirmDialog("Ese día está marcado como cerrado (vacaciones). ¿Crear la cita igualmente?")) return false;
+      const cl = closedInfo(date);
+      if (cl && !confirmDialog(`Ese día está cerrado (${cl.label}). ¿Crear la cita igualmente?`)) return false;
       const time = $("#f-time", mm).value;
       const endTime = $("#f-end", mm).value;
       if (endTime && diffMin(time, endTime) <= 0) { toast("La hora 'hasta' debe ser posterior a la de inicio"); return false; }
