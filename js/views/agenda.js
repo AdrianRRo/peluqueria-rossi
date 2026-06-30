@@ -1,8 +1,10 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=19";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, closedInfo } from "../store.js?v=19";
-import { apiNotify } from "../api.js?v=19";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=20";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, restoreStock, closedInfo } from "../store.js?v=20";
+import { apiNotify } from "../api.js?v=20";
 
 const START_H = 9, END_H = 21;
+const HOUR_PX = 52;            // alto de cada franja horaria (coincide con .cal2-slot)
+const PXMIN = HOUR_PX / 60;    // px por minuto, para posicionar los bloques de cita
 const STATUS = [
   ["pendiente", "Pendiente"], ["confirmada", "Confirmada"],
   ["completada", "Completada"], ["no_show", "No se presentó"], ["cancelada", "Cancelada"],
@@ -50,22 +52,74 @@ function drawWeek(root) {
 
   const clsOf = (c) => (c ? (c.type === "vac" ? "closed closed-vac" : "closed closed-weekly") : "");
 
-  let head = `<div class="cal-corner"></div>`;
+  let head = `<div class="cal2-corner"></div>`;
   for (const d of days) {
     const c = cl[d];
-    head += `<div class="cal-dayhead ${d === today ? "today" : ""} ${clsOf(c)}"><div class="dn">${dowShort(d)}${c ? (c.type === "vac" ? " 🌴" : " ✕") : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
+    head += `<div class="cal2-dayhead ${d === today ? "today" : ""} ${clsOf(c)}"><div class="dn">${dowShort(d)}${c ? (c.type === "vac" ? " 🌴" : " ✕") : ""}</div><div class="dd">${parseDate(d).getDate()}</div></div>`;
   }
-  let rows = "";
-  for (let h = START_H; h < END_H; h++) {
-    rows += `<div class="cal-hour">${String(h).padStart(2, "0")}:00</div>`;
-    for (const d of days) {
-      const items = apptsByDate(d).filter((a) => a.kind !== "venta" && clampH(a.time) === h);
-      const chips = items.map((a) => chipHTML(a)).join("");
-      rows += `<div class="cal-cell ${clsOf(cl[d])}" data-date="${d}" data-hour="${h}" ${cl[d] ? `title="${esc(cl[d].label)}"` : ""}>${chips}</div>`;
+  // columna de horas (a la izquierda)
+  let times = `<div class="cal2-times">`;
+  for (let h = START_H; h < END_H; h++) times += `<div class="cal2-h">${String(h).padStart(2, "0")}:00</div>`;
+  times += `</div>`;
+  // una columna por día: franjas horarias (huecos para pedir cita) + bloques de cita posicionados por duración
+  let cols = "";
+  for (const d of days) {
+    let slots = "";
+    for (let h = START_H; h < END_H; h++) slots += `<div class="cal2-slot ${clsOf(cl[d])}" data-date="${d}" data-hour="${h}" ${cl[d] ? `title="${esc(cl[d].label)}"` : ""}></div>`;
+    const items = apptsByDate(d).filter((a) => a.kind !== "venta");
+    const blocks = layoutDay(items).map((ev) => blockHTML(ev)).join("");
+    cols += `<div class="cal2-col">${slots}${blocks}</div>`;
+  }
+  $("#ag-body", root).innerHTML = `<div class="cal"><div class="cal2" style="--cols:7">${head}${times}${cols}</div></div>`;
+  wireWeek(root);
+}
+
+// Reparte las citas de un día en columnas para que las solapadas se vean lado a lado.
+function layoutDay(items) {
+  const evs = items
+    .map((a) => { const s = toMin(a.time); return { a, s, e: Math.max(toMin(endOf(a)), s + 15) }; })
+    .sort((x, y) => x.s - y.s || x.e - y.e);
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    if (!cluster.length) return;
+    const colEnds = [];
+    for (const ev of cluster) {
+      let placed = false;
+      for (let i = 0; i < colEnds.length; i++) { if (ev.s >= colEnds[i]) { ev.col = i; colEnds[i] = ev.e; placed = true; break; } }
+      if (!placed) { ev.col = colEnds.length; colEnds.push(ev.e); }
     }
+    for (const ev of cluster) ev.ncol = colEnds.length;
+    cluster = []; clusterEnd = -1;
+  };
+  for (const ev of evs) {
+    if (cluster.length && ev.s >= clusterEnd) flush();
+    cluster.push(ev); clusterEnd = Math.max(clusterEnd, ev.e);
   }
-  $("#ag-body", root).innerHTML = `<div class="cal"><div class="cal-grid" style="--cols:7">${head}${rows}</div></div>`;
-  wireCells(root);
+  flush();
+  return evs;
+}
+
+function blockHTML(ev) {
+  const a = ev.a;
+  const dayTop = START_H * 60, dayBottom = END_H * 60;
+  const s = Math.max(ev.s, dayTop), e = Math.min(ev.e, dayBottom);
+  const top = (s - dayTop) * PXMIN;
+  const height = Math.max((e - s) * PXMIN - 2, 18);
+  const w = 100 / ev.ncol, left = ev.col * w;
+  const svc = (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", ");
+  return `<div class="cal2-blk" data-appt="${a.id}" title="${esc(a.clientName)} · ${esc(a.time)}–${esc(endOf(a))}" style="top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px);${chipStyle(a)}"><b>${esc(a.time)}–${esc(endOf(a))}</b> ${esc(a.clientName)}${svc ? `<br><span style="opacity:.7">${esc(svc)}</span>` : ""}</div>`;
+}
+
+function wireWeek(root) {
+  $$(".cal2-blk", root).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editAppt(b.dataset.appt, null, () => renderAgenda(root));
+  }));
+  $$(".cal2-slot", root).forEach((s) => s.addEventListener("click", () => {
+    const cl = closedInfo(s.dataset.date);
+    if (cl) { toast(`${cl.label}. Cámbialo en Ajustes.`); return; }
+    editAppt(null, { date: s.dataset.date, time: `${String(s.dataset.hour).padStart(2, "0")}:00` }, () => renderAgenda(root));
+  }));
 }
 
 function drawDay(root) {
@@ -104,7 +158,6 @@ function drawDay(root) {
   body.appendChild(list);
 }
 
-function clampH(time) { return Math.min(Math.max(parseInt(time.split(":")[0], 10) || START_H, START_H), END_H - 1); }
 function toMin(t) { const [h, m] = (t || "0:0").split(":").map(Number); return (h || 0) * 60 + (m || 0); }
 function addMin(t, mins) { const v = toMin(t) + (mins || 0); const h = Math.floor(v / 60) % 24, m = v % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; }
 function diffMin(a, b) { return toMin(b) - toMin(a); }
@@ -120,23 +173,6 @@ function chipStyle(a) {
   const txt = a.status === "cancelada" ? "rgba(36,34,45,.6)" : "#241a2d";
   return `background:${bg};color:${txt};border-left-color:${bd}${a.status === "cancelada" ? ";text-decoration:line-through" : ""}`;
 }
-function chipHTML(a) {
-  const svc = (a.sale ? a.sale.lines.map((l) => l.name) : (a.items || []).map((i) => i.name)).join(", ");
-  return `<div class="chip" data-appt="${a.id}" style="${chipStyle(a)}"><b>${esc(a.time)}</b> ${esc(a.clientName)}<br><span style="opacity:.7">${esc(svc || "—")}</span></div>`;
-}
-
-function wireCells(root) {
-  $$(".cal-cell", root).forEach((cell) => {
-    cell.addEventListener("click", (e) => {
-      const chip = e.target.closest("[data-appt]");
-      if (chip) { e.stopPropagation(); editAppt(chip.dataset.appt, null, () => renderAgenda(root)); return; }
-      const cl = closedInfo(cell.dataset.date);
-      if (cl) { toast(`${cl.label}. Cámbialo en Ajustes.`); return; }
-      editAppt(null, { date: cell.dataset.date, time: `${String(cell.dataset.hour).padStart(2, "0")}:00` }, () => renderAgenda(root));
-    });
-  });
-}
-
 function reminderText(a) {
   return `Hola ${a.clientName}, te recordamos tu cita en Rossi salón para el día ${fmtLong(a.date)} a las ${a.time}, ¿me confirmas por favor?`;
 }
@@ -188,11 +224,19 @@ function editAppt(id, preset, onDone) {
         <label>Hasta <input id="f-end" type="time" value="${esc(a.endTime || addMin(a.time || "10:00", a.durationMin || 30))}" /></label>
       </div>
       <div class="field">
-        <label>Servicios previstos</label>
+        <label>Servicios / productos</label>
         <div class="lines-head" style="display:grid;grid-template-columns:1fr 86px 36px;gap:8px;font-size:.7rem;color:var(--muted);margin-bottom:4px"><span>Concepto</span><span>Precio €</span><span></span></div>
         <div id="f-items"></div>
         <button type="button" class="btn btn-soft btn-sm" id="add-item">+ Añadir servicio</button>
+        <div class="checkout-total" style="margin-top:10px"><span>Total</span><span class="big" id="f-total">€0,00</span></div>
       </div>
+      <label id="f-method-wrap" ${a.status === "completada" ? "" : "hidden"}>Método de pago
+        <select id="f-method">
+          <option value="efectivo" ${a.sale && a.sale.method === "tarjeta" ? "" : "selected"}>💵 Efectivo</option>
+          <option value="tarjeta" ${a.sale && a.sale.method === "tarjeta" ? "selected" : ""}>💳 Tarjeta</option>
+        </select>
+      </label>
+      <p id="f-method-hint" class="muted" style="font-size:.76rem;margin-top:-4px" ${a.status === "completada" ? "" : "hidden"}>Al estar en “Completada” la cita se cobra con este total y aparece en Facturación.</p>
       <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="f-remind" ${remindDefault ? "checked" : ""} style="width:auto" /> Enviar recordatorio por WhatsApp al crear (citas futuras)</label>
       <label>Nota <textarea id="f-note" placeholder="Observaciones...">${esc(a.note || "")}</textarea></label>
     </div>`;
@@ -231,13 +275,35 @@ function editAppt(id, preset, onDone) {
       const durationMin = endTime ? diffMin(time, endTime) : (a.durationMin || 30);
       const items = readLines(mm.querySelector("#f-items"), false);
       const remindOn = $("#f-remind", mm).checked;
+      const status = $("#f-status", mm).value;
+
+      // Si la cita queda como "Completada", se registra la venta (entra en Facturación
+      // y Estadísticas). Mantiene el nº de ticket y la fecha de cobro si ya existían.
+      let sale = a.sale || null;
+      let cobroMsg = "Cita guardada";
+      if (status === "completada") {
+        if (!items.length) { toast("Añade al menos un servicio/producto para cobrar la cita"); return false; }
+        const method = $("#f-method", mm).value;
+        const lines = items.map((it) => ({ productId: it.productId || null, name: it.name, price: Number(it.price) || 0, cost: it.productId && getProduct(it.productId) ? getProduct(it.productId).cost : 0, qty: 1 }));
+        const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
+        const cost = lines.reduce((s, l) => s + l.cost * l.qty, 0);
+        if (a.sale && a.sale.lines) restoreStock(a.sale.lines); // re-cuadra stock si ya se había cobrado antes
+        consumeStock(lines);
+        sale = { completedAt: (a.sale && a.sale.completedAt) || todayStr(), method, ticketNo: (a.sale && a.sale.ticketNo) || nextTicketNo(), lines, total, cost, profit: total - cost };
+        cobroMsg = `Cobrado ${eur(total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`;
+      } else if (a.sale && a.sale.lines) {
+        // dejó de estar completada: devolvemos el stock y retiramos la venta para no dejarla a medias
+        restoreStock(a.sale.lines);
+        sale = null;
+      }
+
       const saved = upsertAppt({
         id, clientId, clientName,
-        phone, status: $("#f-status", mm).value,
+        phone, status,
         date, time, endTime: endTime || null, durationMin,
-        items, note: $("#f-note", mm).value.trim(), sale: a.sale, remind: remindOn,
+        items, note: $("#f-note", mm).value.trim(), sale, remind: remindOn,
       });
-      toast("Cita guardada");
+      toast(cobroMsg);
       onDone && onDone();
       // recordatorio solo al CREAR una cita futura, con la opción marcada y si el día NO está cerrado
       if (!id && remindOn && saved.date >= todayStr() && !closedInfo(saved.date)) remind(saved);
@@ -257,8 +323,16 @@ function editAppt(id, preset, onDone) {
   // al cambiar la fecha, ajusta el recordatorio por defecto (futura sí / pasada no)
   $("#f-date", m).addEventListener("change", () => { $("#f-remind", m).checked = $("#f-date", m).value >= todayStr(); });
   const cont = $("#f-items", m);
-  (a.items && a.items.length ? a.items : []).forEach((it) => addLine(cont, services, it, false));
-  $("#add-item", m).onclick = () => addLine(cont, services, null, false);
+  const recalc = () => { $("#f-total", m).textContent = eur(readLines(cont, false).reduce((s, l) => s + (Number(l.price) || 0), 0)); };
+  // el método de pago y el total solo importan cuando la cita se marca como completada (cobro)
+  $("#f-status", m).addEventListener("change", () => {
+    const done = $("#f-status", m).value === "completada";
+    $("#f-method-wrap", m).hidden = !done;
+    $("#f-method-hint", m).hidden = !done;
+  });
+  (a.items && a.items.length ? a.items : []).forEach((it) => addLine(cont, services, it, false, recalc));
+  $("#add-item", m).onclick = () => addLine(cont, services, null, false, recalc);
+  recalc();
 }
 
 // ---------- cobro (checkout) ----------

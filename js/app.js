@@ -1,14 +1,14 @@
-import { $, $$ } from "./util.js?v=19";
-import { getSettings, setSetting, hydrate } from "./store.js?v=19";
-import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=19";
-import { renderAgenda } from "./views/agenda.js?v=19";
-import { renderClientes } from "./views/clientes.js?v=19";
-import { renderProductos } from "./views/productos.js?v=19";
-import { renderStock } from "./views/stock.js?v=19";
-import { renderStats } from "./views/stats.js?v=19";
-import { renderFacturacion } from "./views/facturacion.js?v=19";
-import { renderVentas } from "./views/ventas.js?v=19";
-import { renderConfig } from "./views/config.js?v=19";
+import { $, $$ } from "./util.js?v=20";
+import { getSettings, setSetting, hydrate } from "./store.js?v=20";
+import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=20";
+import { renderAgenda } from "./views/agenda.js?v=20";
+import { renderClientes } from "./views/clientes.js?v=20";
+import { renderProductos } from "./views/productos.js?v=20";
+import { renderStock } from "./views/stock.js?v=20";
+import { renderStats } from "./views/stats.js?v=20";
+import { renderFacturacion } from "./views/facturacion.js?v=20";
+import { renderVentas } from "./views/ventas.js?v=20";
+import { renderConfig } from "./views/config.js?v=20";
 
 const ROUTES = {
   "#/agenda": renderAgenda,
