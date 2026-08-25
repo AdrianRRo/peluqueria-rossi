@@ -47,3 +47,41 @@ export async function apiPutState(state) {
   if (r.status === 401) clearToken();
   return r.ok;
 }
+
+// ====== Página web: galería + grupos/servicios ======
+const authH = () => ({ Authorization: `Bearer ${getToken()}` });
+const jsonH = () => ({ "Content-Type": "application/json", ...authH() });
+
+async function apiJson(path, opts = {}) {
+  const r = await fetch(`${API_BASE}${path}`, opts);
+  if (r.status === 401) { clearToken(); throw new Error("401"); }
+  if (!r.ok) {
+    let msg = `error ${r.status}`;
+    try { msg = (await r.json()).detail || msg; } catch {}
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json().catch(() => ({}));
+}
+
+export const imgUrl = (id) => `${API_BASE}/api/gallery/${id}`;
+export const apiGalleryList = () => apiJson(`/api/gallery`);
+export const apiGalleryAdd = (content_type, data, alt = "") =>
+  apiJson(`/api/gallery`, { method: "POST", headers: jsonH(), body: JSON.stringify({ content_type, data, alt }) });
+export const apiGalleryPatch = (id, patch) =>
+  apiJson(`/api/gallery/${id}`, { method: "PATCH", headers: jsonH(), body: JSON.stringify(patch) });
+export const apiGalleryDelete = (id) =>
+  apiJson(`/api/gallery/${id}`, { method: "DELETE", headers: authH() });
+
+export const apiWebGroups = () => apiJson(`/api/web/groups`, { headers: authH() });
+export const apiWebGroupAdd = (g) =>
+  apiJson(`/api/web/groups`, { method: "POST", headers: jsonH(), body: JSON.stringify(g) });
+export const apiWebGroupPatch = (id, patch) =>
+  apiJson(`/api/web/groups/${id}`, { method: "PATCH", headers: jsonH(), body: JSON.stringify(patch) });
+export const apiWebGroupDelete = (id) =>
+  apiJson(`/api/web/groups/${id}`, { method: "DELETE", headers: authH() });
+export const apiWebServiceAdd = (gid, s) =>
+  apiJson(`/api/web/groups/${gid}/services`, { method: "POST", headers: jsonH(), body: JSON.stringify(s) });
+export const apiWebServicePatch = (id, patch) =>
+  apiJson(`/api/web/services/${id}`, { method: "PATCH", headers: jsonH(), body: JSON.stringify(patch) });
+export const apiWebServiceDelete = (id) =>
+  apiJson(`/api/web/services/${id}`, { method: "DELETE", headers: authH() });

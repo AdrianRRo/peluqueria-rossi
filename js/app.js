@@ -9,6 +9,7 @@ import { renderStats } from "./views/stats.js?v=20";
 import { renderFacturacion } from "./views/facturacion.js?v=20";
 import { renderVentas } from "./views/ventas.js?v=20";
 import { renderConfig } from "./views/config.js?v=20";
+import { renderWeb } from "./views/web.js?v=21";
 
 const ROUTES = {
   "#/agenda": renderAgenda,
@@ -18,6 +19,7 @@ const ROUTES = {
   "#/ventas": renderVentas,
   "#/stats": renderStats,
   "#/facturacion": renderFacturacion,
+  "#/web": renderWeb,
   "#/config": renderConfig,
 };
 
