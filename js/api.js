@@ -1,7 +1,7 @@
 // ====== cliente del backend (sync de estado + login) ======
 // La URL es pública (no es secreto). El secreto es la contraseña, que se valida
 // en el servidor y devuelve un token temporal (JWT). No hay claves en este código.
-const API_BASE = "https://botarmy.tail0680ed.ts.net:10000";
+const API_BASE = "https://botarmy.tail0680ed.ts.net:10000"; // mismo origen: el backend FastAPI sirve este frontend
 const TKEY = "pr_token";
 
 export const getToken = () => localStorage.getItem(TKEY) || "";
