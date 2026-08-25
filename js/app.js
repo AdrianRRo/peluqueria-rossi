@@ -1,15 +1,15 @@
-import { $, $$ } from "./util.js?v=20";
-import { getSettings, setSetting, hydrate } from "./store.js?v=20";
-import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=20";
-import { renderAgenda } from "./views/agenda.js?v=20";
-import { renderClientes } from "./views/clientes.js?v=20";
-import { renderProductos } from "./views/productos.js?v=20";
-import { renderStock } from "./views/stock.js?v=20";
-import { renderStats } from "./views/stats.js?v=20";
-import { renderFacturacion } from "./views/facturacion.js?v=20";
-import { renderVentas } from "./views/ventas.js?v=20";
-import { renderConfig } from "./views/config.js?v=20";
-import { renderWeb } from "./views/web.js?v=21";
+import { $, $$ } from "./util.js?v=22";
+import { getSettings, setSetting, hydrate } from "./store.js?v=22";
+import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=22";
+import { renderAgenda } from "./views/agenda.js?v=22";
+import { renderClientes } from "./views/clientes.js?v=22";
+import { renderProductos } from "./views/productos.js?v=22";
+import { renderStock } from "./views/stock.js?v=22";
+import { renderStats } from "./views/stats.js?v=22";
+import { renderFacturacion } from "./views/facturacion.js?v=22";
+import { renderVentas } from "./views/ventas.js?v=22";
+import { renderConfig } from "./views/config.js?v=22";
+import { renderWeb } from "./views/web.js?v=22";
 
 const ROUTES = {
   "#/agenda": renderAgenda,

@@ -1,6 +1,6 @@
 // ====== capa de datos (backend + caché localStorage) ======
-import { uid, todayStr, addDays, parseDate } from "./util.js?v=20";
-import { getToken, apiPutState } from "./api.js?v=20";
+import { uid, todayStr, addDays, parseDate } from "./util.js?v=22";
+import { getToken, apiPutState } from "./api.js?v=22";
 
 const KEY = "pr_state_v4";
 

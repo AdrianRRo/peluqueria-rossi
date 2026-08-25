@@ -1,6 +1,6 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=20";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, restoreStock, closedInfo } from "../store.js?v=20";
-import { apiNotify } from "../api.js?v=20";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=22";
+import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, restoreStock, closedInfo } from "../store.js?v=22";
+import { apiNotify } from "../api.js?v=22";
 
 const START_H = 9, END_H = 21;
 const HOUR_PX = 52;            // alto de cada franja horaria (coincide con .cal2-slot)

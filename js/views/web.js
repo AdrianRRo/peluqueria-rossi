@@ -5,12 +5,12 @@
 //    si no hay precio, en la web sale el servicio SIN precio.
 //  - Flag "mostrar en la portada": los grupos marcados salen como tarjeta en la
 //    home; todos salen en la página de servicios.
-import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=20";
+import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=22";
 import {
   imgUrl, apiGalleryList, apiGalleryAdd, apiGalleryPatch, apiGalleryDelete,
   apiWebGroups, apiWebGroupAdd, apiWebGroupPatch, apiWebGroupDelete,
   apiWebServiceAdd, apiWebServicePatch, apiWebServiceDelete,
-} from "../api.js?v=20";
+} from "../api.js?v=22";
 
 const MAX_MB = 6;
 const TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
