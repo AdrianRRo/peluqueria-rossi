@@ -1,6 +1,7 @@
 import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=22";
 import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, restoreStock, closedInfo } from "../store.js?v=22";
 import { apiNotify } from "../api.js?v=22";
+import { makeCombobox } from "../combobox.js?v=22";
 
 const START_H = 9, END_H = 21;
 const HOUR_PX = 52;            // alto de cada franja horaria (coincide con .cal2-slot)
@@ -204,12 +205,11 @@ function editAppt(id, preset, onDone) {
   const body = `
     <div class="form-grid">
       <label>Cliente
-        <select id="f-client-sel">
-          <option value="">— Selecciona cliente —</option>
-          ${keepLegacy ? `<option value="__keep__" selected>${esc(a.clientName)} (actual)</option>` : ""}
-          ${clients.map((c) => `<option value="${c.id}" ${known && a.clientId === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
-          <option value="__new__">➕ Nuevo cliente…</option>
-        </select>
+        <div class="cb-wrap" id="f-client-combo">
+          <input class="cb-inp" id="f-client-inp" placeholder="Buscar cliente…" autocomplete="off" spellcheck="false" />
+          <input type="hidden" id="f-client-sel" />
+          <div class="cb-drop" hidden></div>
+        </div>
       </label>
       <label id="f-newclient-wrap" hidden>Nombre del nuevo cliente
         <input id="f-newname" placeholder="Nombre y apellidos" />
@@ -310,16 +310,19 @@ function editAppt(id, preset, onDone) {
     },
   });
 
-  // mostrar campo de nombre al elegir "Nuevo cliente" y autocompletar teléfono al elegir uno existente
-  const selEl = $("#f-client-sel", m);
-  const syncClient = () => {
-    const v = selEl.value;
+  // combobox de cliente: muestra campo de nombre al elegir "Nuevo" y autocompleta teléfono
+  const clientItems = [
+    ...(keepLegacy ? [{ value: "__keep__", label: `${a.clientName} (actual)` }] : []),
+    ...clients.map((c) => ({ value: c.id, label: c.name })),
+    { value: "__new__", label: "➕ Nuevo cliente…", special: true },
+  ];
+  const initClientVal = keepLegacy ? "__keep__" : (known ? a.clientId : "");
+  makeCombobox($("#f-client-combo", m), clientItems, initClientVal, (v) => {
     $("#f-newclient-wrap", m).hidden = v !== "__new__";
     if (v === "__new__") { $("#f-newname", m).focus(); return; }
     const c = v && v !== "__keep__" ? getClient(v) : null;
     if (c && !$("#f-phone", m).value) $("#f-phone", m).value = c.phone || "";
-  };
-  selEl.addEventListener("change", syncClient);
+  });
   // al cambiar la fecha, ajusta el recordatorio por defecto (futura sí / pasada no)
   $("#f-date", m).addEventListener("change", () => { $("#f-remind", m).checked = $("#f-date", m).value >= todayStr(); });
   const cont = $("#f-items", m);
@@ -389,14 +392,23 @@ function addLine(container, services, line, withQty, onChange) {
   const el = document.createElement("div");
   el.className = "line";
   if (!withQty) el.style.gridTemplateColumns = "1fr 86px 36px";
-  const opts = services.map((p) => `<option value="${p.id}" ${line && line.productId === p.id ? "selected" : ""}>${esc(p.name)} — ${eur(p.price)}</option>`).join("");
   el.innerHTML = `
-    <select data-prod><option value="">— elegir —</option>${opts}</select>
+    <div class="cb-wrap">
+      <input class="cb-inp" placeholder="— elegir servicio —" autocomplete="off" spellcheck="false" />
+      <input type="hidden" data-prod />
+      <div class="cb-drop" hidden></div>
+    </div>
     <input data-price type="number" step="0.01" min="0" value="${line && line.price != null ? line.price : ""}" placeholder="0,00" />
     ${withQty ? `<input data-qty type="number" min="1" value="${line && line.qty ? line.qty : 1}" />` : ""}
     <button type="button" class="icon-btn del" data-rm title="Quitar">✕</button>`;
-  const sel = el.querySelector("[data-prod]"), price = el.querySelector("[data-price]");
-  sel.addEventListener("change", () => { const p = getProduct(sel.value); if (p) price.value = p.price; onChange && onChange(); });
+  const price = el.querySelector("[data-price]");
+  const svcItems = services.map((p) => ({ value: p.id, label: `${p.name} — ${eur(p.price)}` }));
+  const initSvcVal = line && line.productId ? line.productId : "";
+  makeCombobox(el.querySelector(".cb-wrap"), svcItems, initSvcVal, (val) => {
+    const p = getProduct(val);
+    if (p && !price.value) price.value = p.price;
+    onChange && onChange();
+  });
   price.addEventListener("input", () => onChange && onChange());
   const qty = el.querySelector("[data-qty]"); if (qty) qty.addEventListener("input", () => onChange && onChange());
   el.querySelector("[data-rm]").onclick = () => { el.remove(); onChange && onChange(); };
@@ -409,7 +421,8 @@ function readLines(container, withQty) {
     const p = getProduct(sel.value);
     const price = Number(el.querySelector("[data-price]").value) || 0;
     const qty = withQty ? (Number(el.querySelector("[data-qty]").value) || 1) : 1;
-    const name = p ? p.name : (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.split(" — ")[0] : "");
+    const cbInp = el.querySelector(".cb-inp");
+    const name = p ? p.name : (cbInp ? cbInp.value.split(" — ")[0].trim() : "");
     if (!sel.value && !price) return null;
     return withQty
       ? { productId: sel.value || null, name, price, cost: p ? p.cost : 0, qty }
