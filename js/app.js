@@ -1,15 +1,20 @@
-import { $, $$ } from "./util.js?v=22";
-import { getSettings, setSetting, hydrate } from "./store.js?v=22";
-import { apiLogin, apiGetState, getToken, clearToken } from "./api.js?v=22";
-import { renderAgenda } from "./views/agenda.js?v=22";
-import { renderClientes } from "./views/clientes.js?v=22";
-import { renderProductos } from "./views/productos.js?v=22";
-import { renderStock } from "./views/stock.js?v=22";
-import { renderStats } from "./views/stats.js?v=22";
-import { renderFacturacion } from "./views/facturacion.js?v=22";
-import { renderVentas } from "./views/ventas.js?v=22";
-import { renderConfig } from "./views/config.js?v=22";
-import { renderWeb } from "./views/web.js?v=22";
+// ====== arranque: login, tema y router ======
+// API-first: el servidor es la única fuente de datos. localStorage solo guarda
+// el token (api.js) y el tema (store.js). Sin token → login; con token →
+// loadRemote() (GET /api/state) y a la app. Si el backend no responde, se
+// muestra el banner de sin conexión (no hay modo offline silencioso).
+import { $, $$ } from "./util.js?v=23";
+import { loadRemote, resetState, getTheme, setTheme } from "./store.js?v=23";
+import { apiLogin, getToken, clearToken, showOfflineBanner } from "./api.js?v=23";
+import { renderAgenda } from "./views/agenda.js?v=23";
+import { renderClientes } from "./views/clientes.js?v=23";
+import { renderProductos } from "./views/productos.js?v=23";
+import { renderStock } from "./views/stock.js?v=23";
+import { renderStats } from "./views/stats.js?v=23";
+import { renderFacturacion } from "./views/facturacion.js?v=23";
+import { renderVentas } from "./views/ventas.js?v=23";
+import { renderConfig } from "./views/config.js?v=23";
+import { renderWeb } from "./views/web.js?v=23";
 
 const ROUTES = {
   "#/agenda": renderAgenda,
@@ -30,7 +35,7 @@ function applyTheme(t) {
   if (btn) btn.textContent = t === "dark" ? "☀️" : "🌙";
   document.querySelector('meta[name="theme-color"]').setAttribute("content", t === "dark" ? "#15101a" : "#ffffff");
 }
-applyTheme(getSettings().theme || "light");
+applyTheme(getTheme());
 
 // ---- router ----
 function route() {
@@ -53,45 +58,59 @@ function showLogin() {
   $("#login-view").hidden = false;
 }
 
-// Carga el estado desde el servidor y lo aplica. Devuelve "ok" | "auth" | "net".
-async function loadRemote() {
-  try {
-    hydrate(await apiGetState());
-    applyTheme(getSettings().theme || "light");
-    return "ok";
-  } catch (e) {
-    return String(e.message) === "401" ? "auth" : "net";
-  }
+// Carga el estado del servidor (única fuente). Migración única del tema: si
+// aún no hay preferencia local, adopta la que hubiera en el servidor.
+async function loadAndTheme() {
+  const st = await loadRemote();
+  if (!localStorage.getItem("pr_theme") && st?.settings?.theme) setTheme(st.settings.theme);
+  applyTheme(getTheme());
 }
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  $("#login-error").hidden = true;
+  const errEl = $("#login-error");
+  errEl.hidden = true;
   const btn = $("#login-form button[type=submit]");
   if (btn) { btn.disabled = true; btn.dataset.txt = btn.textContent; btn.textContent = "Entrando…"; }
   try {
     await apiLogin($("#login-user").value.trim(), $("#login-pass").value);
-    await loadRemote();
+    await loadAndTheme();
     showApp();
   } catch (err) {
-    $("#login-error").hidden = false;
+    errEl.textContent = err.message === "sin conexión"
+      ? "Sin conexión con el servidor. Comprueba la red y reintenta."
+      : "Usuario o contraseña incorrectos.";
+    errEl.hidden = false;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.txt || "Entrar"; }
   }
 });
-$("#logout").addEventListener("click", () => { clearToken(); $("#login-form").reset(); showLogin(); });
+
+$("#logout").addEventListener("click", () => {
+  clearToken();
+  resetState();
+  $("#login-form").reset();
+  showLogin();
+});
 
 $("#theme-toggle").addEventListener("click", () => {
-  const next = (getSettings().theme === "dark") ? "light" : "dark";
-  setSetting("theme", next); applyTheme(next);
+  const next = getTheme() === "dark" ? "light" : "dark";
+  setTheme(next);
+  applyTheme(next);
 });
 
 window.addEventListener("hashchange", () => { if (getToken()) route(); });
 
-// Arranque: si hay sesión, intenta cargar del servidor; si el token caducó,
-// vuelve al login; si solo falla la red, sigue con la caché local (offline).
+// Arranque: con token se sincroniza del servidor; si el token caducó, al login.
+// Si el backend está caído, se entra igualmente con el banner de sin conexión
+// visible (reintentar = recargar y volver a sincronizar).
 if (getToken()) {
-  loadRemote().then((st) => { if (st === "auth") showLogin(); else showApp(); });
+  loadAndTheme()
+    .then(() => showApp())
+    .catch((e) => {
+      if (String(e.message) === "401") showLogin();
+      else { showOfflineBanner(); showApp(); }
+    });
 } else {
   showLogin();
 }

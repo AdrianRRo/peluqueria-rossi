@@ -1,5 +1,6 @@
-import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=22";
-import { listProducts, upsertProduct, deleteProduct, getProduct } from "../store.js?v=22";
+import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=23";
+import { listProducts, getProduct, loadRemote } from "../store.js?v=23";
+import { apiProductAdd, apiProductPatch, apiProductDelete } from "../api.js?v=23";
 
 export function renderProductos(root) {
   const prods = listProducts();
@@ -29,7 +30,14 @@ export function renderProductos(root) {
       <td class="num ${margin >= 0 ? "pos" : "neg"}">${eur(margin)} <span class="muted">(${pct}%)</span></td>
       <td class="num"><button class="icon-btn" data-edit title="Editar">✏️</button> <button class="icon-btn del" data-del title="Eliminar">🗑</button></td>`;
     tr.querySelector("[data-edit]").onclick = () => editProduct(p.id, () => renderProductos(root));
-    tr.querySelector("[data-del]").onclick = () => { if (confirmDialog(`¿Eliminar "${p.name}"?`)) { deleteProduct(p.id); renderProductos(root); } };
+    tr.querySelector("[data-del]").onclick = async () => {
+      if (!confirmDialog(`¿Eliminar "${p.name}"?`)) return;
+      try {
+        await apiProductDelete(p.id);
+        await loadRemote();
+        renderProductos(root);
+      } catch (e) { toast(`No se pudo eliminar: ${e.message}`); }
+    };
     body.appendChild(tr);
   }
   $("#pr-new", root).onclick = () => editProduct(null, () => renderProductos(root));
@@ -67,16 +75,27 @@ export function editProduct(id, onDone) {
       const sync = () => { $("#stock-fields", m).hidden = $("#f-cat", m).value !== "producto"; };
       $("#f-cat", m).addEventListener("change", sync); sync();
     },
-    onSave: (m) => {
+    onSave: async (m) => {
       const name = $("#f-name", m).value.trim();
       if (!name) { toast("Indica el nombre"); return false; }
       const isProd = $("#f-cat", m).value === "producto";
-      upsertProduct({
-        id, name, category: $("#f-cat", m).value, price: $("#f-price", m).value, cost: $("#f-cost", m).value, active: $("#f-active", m).checked,
-        ...(isProd ? { stock: $("#f-stock", m).value, minStock: $("#f-min", m).value } : {}),
-      });
-      toast("Guardado");
-      onDone && onDone();
+      const data = {
+        name, category: $("#f-cat", m).value,
+        price: Number($("#f-price", m).value) || 0,
+        cost: Number($("#f-cost", m).value) || 0,
+        active: $("#f-active", m).checked,
+        ...(isProd ? { stock: Number($("#f-stock", m).value) || 0, minStock: Number($("#f-min", m).value) || 0 } : {}),
+      };
+      try {
+        if (id) await apiProductPatch(id, data);
+        else await apiProductAdd(data);
+        await loadRemote();
+        toast("Guardado");
+        onDone && onDone();
+      } catch (e) {
+        toast(`No se pudo guardar: ${e.message}`);
+        return false;
+      }
     },
   });
 }

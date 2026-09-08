@@ -35,7 +35,9 @@ export function toast(msg) {
 }
 
 // ---- modal genérico ----
-// opts: { title, body(HTML string), saveLabel, onSave(modalEl)->bool|void, extra:[{label,cls,onClick}] }
+// opts: { title, body(HTML string), saveLabel, onSave(modalEl)->bool|void|Promise, extra:[{label,cls,onClick}] }
+// onSave puede ser async: el modal espera y solo cierra si resuelve algo distinto
+// de false (las vistas devuelven false para quedarse abiertas tras un error).
 export function openModal(opts) {
   const root = $("#modal-root");
   root.innerHTML = "";
@@ -56,9 +58,23 @@ export function openModal(opts) {
   back.addEventListener("click", (e) => { if (e.target === back) close(); });
   $("[data-close]", back).addEventListener("click", close);
   const saveBtn = $("[data-save]", back);
-  if (saveBtn) saveBtn.addEventListener("click", () => { const r = opts.onSave(back); if (r !== false) close(); });
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    try {
+      const r = await opts.onSave(back);
+      if (r !== false) close();
+    } catch (e) {
+      toast(`No se pudo guardar: ${e.message}`);
+    }
+  });
   (opts.extra || []).forEach((b, i) => {
-    $(`[data-extra="${i}"]`, back).addEventListener("click", () => { const r = b.onClick(back, close); if (r !== false && b.closeAfter !== false) close(); });
+    $(`[data-extra="${i}"]`, back).addEventListener("click", async () => {
+      try {
+        const r = await b.onClick(back, close);
+        if (r !== false && b.closeAfter !== false) close();
+      } catch (e) {
+        toast(`No se pudo guardar: ${e.message}`);
+      }
+    });
   });
   root.appendChild(back);
   if (opts.onShow) opts.onShow(back);

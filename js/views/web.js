@@ -5,12 +5,13 @@
 //    si no hay precio, en la web sale el servicio SIN precio.
 //  - Flag "mostrar en la portada": los grupos marcados salen como tarjeta en la
 //    home; todos salen en la página de servicios.
-import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=22";
+import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=23";
 import {
   imgUrl, apiGalleryList, apiGalleryAdd, apiGalleryPatch, apiGalleryDelete,
   apiWebGroups, apiWebGroupAdd, apiWebGroupPatch, apiWebGroupDelete,
   apiWebServiceAdd, apiWebServicePatch, apiWebServiceDelete,
-} from "../api.js?v=22";
+  apiWebStats,
+} from "../api.js?v=23";
 
 const MAX_MB = 6;
 const TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -19,6 +20,14 @@ export async function renderWeb(root) {
   root.innerHTML = `
     <div class="page-head">
       <div><h2>Página web</h2><p class="sub">Gestiona lo que se ve en tu web: fotos y servicios</p></div>
+    </div>
+    <div class="card" style="padding:14px;margin-bottom:16px">
+      <div class="page-head" style="margin:0 0 10px">
+        <div><h3 style="margin:0">Estadísticas de la web</h3>
+          <p class="sub">Visitas y clics en WhatsApp registrados por rossisalondebelleza.com.</p></div>
+        <button class="btn btn-soft" id="w-refresh">↻ Actualizar</button>
+      </div>
+      <div id="w-stats"></div>
     </div>
     <div class="card" style="padding:14px;margin-bottom:16px">
       <div class="page-head" style="margin:0 0 10px">
@@ -37,9 +46,64 @@ export async function renderWeb(root) {
       <div id="s-groups"></div>
     </div>`;
 
+  loadWebStats(root); // sin await: la carga de stats no bloquea el resto del tab
   await Promise.all([loadGallery(root), loadGroups(root)]);
+  $("#w-refresh", root).onclick = () => loadWebStats(root);
   $("#g-add", root).onclick = () => uploadPhoto(() => loadGallery(root));
   $("#s-add-group", root).onclick = () => editGroup(null, () => loadGroups(root));
+}
+
+// ---------- Estadísticas de la web ----------
+const KIND_LABEL = { visit: "visita", click_wa: "clic WhatsApp" };
+
+function hostOnly(url) {
+  if (!url) return null;
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+function browserOf(ua) {
+  return (ua || "").trim().split(/\s+/)[0] || null;
+}
+
+async function loadWebStats(root) {
+  const host = $("#w-stats", root);
+  if (!host) return; // el usuario cambió de tab mientras cargaba
+  host.innerHTML = `<p class="muted">Cargando…</p>`;
+  let s;
+  try { s = await apiWebStats(); }
+  catch (e) {
+    // 404 = backend anterior al panel; red/caída = servicio no disponible.
+    // En cualquier caso el resto del tab sigue funcionando.
+    host.innerHTML = `<p class="empty">Estadísticas no disponibles todavía</p>`;
+    return;
+  }
+  const sinDatos = !s.total_visitas && !s.clicks_wa_total && !(s.ultimos || []).length;
+  if (sinDatos) {
+    host.innerHTML = `<p class="empty">Aún no hay visitas registradas. Cuando la web pública reciba tráfico, lo verás aquí.</p>`;
+    return;
+  }
+  const rows = (s.ultimos || []).map((e) => {
+    const d = new Date(e.ts);
+    return `<tr>
+      <td>${Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+      <td>${esc(KIND_LABEL[e.kind] || e.kind)}</td>
+      <td>${esc(e.path || "—")}</td>
+      <td>${esc(hostOnly(e.referer) || "—")}</td>
+      <td>${esc(e.country || "—")}</td>
+      <td>${esc(browserOf(e.ua) || "—")}</td>
+    </tr>`;
+  }).join("");
+  host.innerHTML = `
+    <div class="kpis" style="margin-bottom:14px">
+      <div class="kpi accent"><div class="v">${s.total_visitas}</div><div class="l">Visitas totales</div></div>
+      <div class="kpi"><div class="v">${s.unicos_30d}</div><div class="l">Visitantes únicos (30d)</div></div>
+      <div class="kpi good"><div class="v">${s.clicks_wa_total}</div><div class="l">Clics WhatsApp (total)</div></div>
+      <div class="kpi"><div class="v">${s.clicks_wa_30d}</div><div class="l">Clics WhatsApp (30d)</div></div>
+    </div>
+    <table class="tbl" style="width:100%">
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Página</th><th>Desde</th><th>País</th><th>Navegador</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 // ---------- Galería ----------

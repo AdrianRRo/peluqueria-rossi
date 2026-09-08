@@ -1,5 +1,6 @@
-import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=22";
-import { listClients, upsertClient, deleteClient, listAppointments } from "../store.js?v=22";
+import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=23";
+import { listClients, listAppointments, loadRemote } from "../store.js?v=23";
+import { apiClientAdd, apiClientPatch, apiClientDelete } from "../api.js?v=23";
 
 export function renderClientes(root) {
   const clients = listClients();
@@ -36,7 +37,14 @@ export function renderClientes(root) {
       row.querySelector('[data-act="view"]').onclick = () => viewClient(c.id, () => draw($("#cli-search", root).value));
       row.querySelector('[data-act="edit"]').onclick = () => editClient(c.id, () => renderClientes(root));
       row.querySelector('[data-act="wa"]').onclick = () => whatsapp(c.phone, `Hola ${c.name}, te escribimos de Peluquería Rossi ✂️`);
-      row.querySelector('[data-act="del"]').onclick = () => { if (confirmDialog(`¿Eliminar a ${c.name}?`)) { deleteClient(c.id); renderClientes(root); } };
+      row.querySelector('[data-act="del"]').onclick = async () => {
+        if (!confirmDialog(`¿Eliminar a ${c.name}?`)) return;
+        try {
+          await apiClientDelete(c.id);
+          await loadRemote();
+          renderClientes(root);
+        } catch (e) { toast(`No se pudo eliminar: ${e.message}`); }
+      };
       list.appendChild(row);
     }
   };
@@ -64,12 +72,20 @@ export function editClient(id, onDone) {
     title: id ? "Editar cliente" : "Nuevo cliente",
     body: clientForm(c),
     saveLabel: "Guardar",
-    onSave: (m) => {
+    onSave: async (m) => {
       const name = $("#f-name", m).value.trim();
       if (!name) { toast("Indica el nombre"); return false; }
-      upsertClient({ id, name, phone: $("#f-phone", m).value.trim(), email: $("#f-email", m).value.trim(), hairType: $("#f-hair", m).value.trim(), notes: $("#f-notes", m).value.trim() });
-      toast("Cliente guardado");
-      onDone && onDone();
+      const data = { name, phone: $("#f-phone", m).value.trim(), email: $("#f-email", m).value.trim(), hairType: $("#f-hair", m).value.trim(), notes: $("#f-notes", m).value.trim() };
+      try {
+        if (id) await apiClientPatch(id, data);
+        else await apiClientAdd(data);
+        await loadRemote();
+        toast("Cliente guardado");
+        onDone && onDone();
+      } catch (e) {
+        toast(`No se pudo guardar: ${e.message}`);
+        return false; // modal abierto: el error es visible y no hay caché local
+      }
     },
   });
 }

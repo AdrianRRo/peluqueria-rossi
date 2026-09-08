@@ -1,83 +1,49 @@
-// ====== capa de datos (backend + caché localStorage) ======
-import { uid, todayStr, addDays, parseDate } from "./util.js?v=22";
-import { getToken, apiPutState } from "./api.js?v=22";
+// ====== capa de datos (API-first) ======
+// El estado NO se persiste en localStorage: el servidor es la única fuente de
+// verdad. localStorage guarda SOLO el token (api.js) y el tema (aquí).
+// El estado vive en memoria y se hidrata con loadRemote() (GET /api/state);
+// las escrituras van por endpoints por-recurso desde las vistas (api.js).
+import { parseDate } from "./util.js?v=23";
+import { apiGetState } from "./api.js?v=23";
 
-const KEY = "pr_state_v4";
+let state = { clients: [], products: [], appointments: [], vacations: [], settings: { theme: "light", closedWeekdays: [0, 1] } };
+let _loading = null;
 
-const SERVICE = "servicio";
-const PRODUCT = "producto";
-
-// Empezamos de cero: sin clientes, productos ni citas. El negocio configura todo.
-function seed() {
-  return { clients: [], products: [], appointments: [], vacations: [], settings: { theme: "light", closedWeekdays: [0, 1] } };
+// Carga el estado completo del servidor (deduplica llamadas concurrentes).
+// Es la ÚNICA forma de hidratar/refrescar el estado tras un arranque o escritura.
+export function loadRemote() {
+  if (!_loading) {
+    _loading = apiGetState().then(
+      (remote) => { state = remote || state; _loading = null; return state; },
+      (err) => { _loading = null; throw err; },
+    );
+  }
+  return _loading;
 }
 
-let state = load();
-function load() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY));
-    if (raw && raw.clients && raw.products && raw.appointments) return raw;
-  } catch {}
-  const s = seed();
-  localStorage.setItem(KEY, JSON.stringify(s));
-  return s;
-}
-const _count = (s) => (s ? (s.clients || []).length + (s.products || []).length + (s.appointments || []).length : 0);
-function pushNow() { if (getToken()) apiPutState(state).catch(() => {}); }
-
-// Sustituye el estado en memoria por el del servidor (al iniciar sesión/cargar).
-// Salvaguarda: si el servidor está vacío pero localmente hay datos, NO los
-// borra; conserva lo local y lo sube (migración sin pérdida).
-export function hydrate(remote) {
-  if (!remote || typeof remote !== "object" || !Array.isArray(remote.appointments)) return;
-  if (_count(remote) === 0 && _count(state) > 0) { pushNow(); return; }
-  state = {
-    clients: remote.clients || [],
-    products: remote.products || [],
-    appointments: remote.appointments || [],
-    vacations: remote.vacations || [],
-    settings: remote.settings || { theme: "light", closedWeekdays: [0, 1] },
-  };
-  localStorage.setItem(KEY, JSON.stringify(state));
+// Vuelve al estado vacío (al cerrar sesión: nada queda en memoria ni en disco).
+export function resetState() {
+  state = { clients: [], products: [], appointments: [], vacations: [], settings: { theme: "light", closedWeekdays: [0, 1] } };
 }
 
-// Empuje al backend con debounce: cada cambio se guarda en caché local y se
-// sincroniza al servidor (si hay sesión). Si falla la red, la caché local cubre.
-let _syncT;
-function pushRemote() {
-  if (!getToken()) return;
-  clearTimeout(_syncT);
-  _syncT = setTimeout(() => { apiPutState(state).catch(() => {}); }, 800);
-}
-function persist() { localStorage.setItem(KEY, JSON.stringify(state)); pushRemote(); }
+// ---- tema (preferencia local del dispositivo; NO viaja al servidor) ----
+const THEME_KEY = "pr_theme";
+export const getTheme = () => localStorage.getItem(THEME_KEY) || "light";
+export const setTheme = (t) => localStorage.setItem(THEME_KEY, t);
 
-// ---- settings ----
+// ---- settings (solo lectura; escribir → PUT /api/settings) ----
 export const getSettings = () => state.settings || (state.settings = { theme: "light" });
-export function setSetting(k, v) { getSettings()[k] = v; persist(); }
 
 // ---- facturación ----
 export const IVA = 0.21; // peluquería en España
-export function nextTicketNo() { const s = getSettings(); s.lastTicketNo = (s.lastTicketNo || 0) + 1; persist(); return s.lastTicketNo; }
-// asigna nº correlativo a ventas completadas que aún no lo tengan (orden cronológico de cobro)
-export function ensureTicketNumbers() {
-  const s = getSettings();
-  const done = state.appointments.filter((a) => a.status === "completada" && a.sale)
-    .sort((a, b) => ((a.sale.completedAt || a.date) + a.time).localeCompare((b.sale.completedAt || b.date) + b.time));
-  let changed = false;
-  for (const a of done) if (a.sale.ticketNo == null) { s.lastTicketNo = (s.lastTicketNo || 0) + 1; a.sale.ticketNo = s.lastTicketNo; changed = true; }
-  if (changed) persist();
-}
 
 // ---- vacaciones / días cerrados ----
 export const listVacations = () => [...(state.vacations || [])].sort((a, b) => a.from.localeCompare(b.from));
-export function addVacation(from, to, note) { state.vacations ||= []; const v = { id: uid(), from, to: to || from, note: note || "" }; state.vacations.push(v); persist(); return v; }
-export function deleteVacation(id) { state.vacations = (state.vacations || []).filter((v) => v.id !== id); persist(); }
 export function vacationOn(date) { return (state.vacations || []).find((v) => date >= v.from && date <= v.to) || null; }
 
 // ---- días de cierre semanal (configurable). 0=domingo ... 6=sábado ----
 const WD_NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 export const getClosedWeekdays = () => getSettings().closedWeekdays || [];
-export function setClosedWeekdays(arr) { getSettings().closedWeekdays = (arr || []).map(Number); persist(); }
 // devuelve el motivo de cierre de un día (vacaciones o cierre semanal) o null
 export function closedInfo(date) {
   const v = vacationOn(date);
@@ -90,65 +56,23 @@ export function closedInfo(date) {
 // ---- clientes ----
 export const listClients = () => [...state.clients].sort((a, b) => a.name.localeCompare(b.name));
 export const getClient = (id) => state.clients.find((c) => c.id === id);
-export function upsertClient(c) {
-  if (c.id) { Object.assign(getClient(c.id), c); }
-  else { c.id = uid(); c.createdAt = todayStr(); state.clients.push(c); }
-  persist(); return c;
-}
-export function deleteClient(id) { state.clients = state.clients.filter((c) => c.id !== id); persist(); }
 
 // ---- productos ----
 export const listProducts = (onlyActive = false) =>
   [...state.products].filter((p) => !onlyActive || p.active).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 export const getProduct = (id) => state.products.find((p) => p.id === id);
-export function upsertProduct(p) {
-  p.price = Number(p.price) || 0; p.cost = Number(p.cost) || 0;
-  if (p.stock != null) p.stock = Number(p.stock) || 0;
-  if (p.minStock != null) p.minStock = Number(p.minStock) || 0;
-  if (p.id) { Object.assign(getProduct(p.id), p); }
-  else { p.id = uid(); state.products.push(p); }
-  persist(); return p;
-}
-export function deleteProduct(id) { state.products = state.products.filter((p) => p.id !== id); persist(); }
 
 // ---- stock / inventario (solo productos de venta) ----
 export const listStock = () => state.products.filter((p) => p.category === "producto")
   .sort((a, b) => (isLow(b) - isLow(a)) || ((Number(a.stock) || 0) - (Number(b.stock) || 0)) || a.name.localeCompare(b.name));
 export const isLow = (p) => (Number(p.stock) || 0) <= (p.minStock != null ? p.minStock : 0);
-export function adjustStock(id, delta) { const p = getProduct(id); if (!p) return; p.stock = (Number(p.stock) || 0) + delta; persist(); }
-export function setStockValues(id, stock, minStock) { const p = getProduct(id); if (!p) return; if (stock != null) p.stock = Number(stock) || 0; if (minStock != null) p.minStock = Number(minStock) || 0; persist(); }
-function decLines(lines) { let ch = false; for (const l of (lines || [])) { if (!l.productId) continue; const p = getProduct(l.productId); if (p && p.category === "producto") { p.stock = (Number(p.stock) || 0) - (l.qty || 1); ch = true; } } return ch; }
-export function consumeStock(lines) { if (decLines(lines)) persist(); }
-export function restoreStock(lines) { let ch = false; for (const l of (lines || [])) { if (!l.productId) continue; const p = getProduct(l.productId); if (p && p.category === "producto") { p.stock = (Number(p.stock) || 0) + (l.qty || 1); ch = true; } } if (ch) persist(); }
 
 // ---- citas ----
 export const listAppointments = () => state.appointments;
 export const apptsByDate = (date) => state.appointments.filter((a) => a.date === date).sort((a, b) => a.time.localeCompare(b.time));
 export const apptsBetween = (from, to) => state.appointments.filter((a) => a.date >= from && a.date <= to);
 export const getAppt = (id) => state.appointments.find((a) => a.id === id);
-export function upsertAppt(a) {
-  if (a.id) { Object.assign(getAppt(a.id), a); }
-  else { a.id = uid(); state.appointments.push(a); }
-  persist(); return a;
-}
-export function deleteAppt(id) { state.appointments = state.appointments.filter((a) => a.id !== id); persist(); }
-
-// venta directa de productos (sin cita). Se guarda como registro completado para que entre en estadísticas y facturación.
-export function createSale({ lines, method, clientName, clientId }) {
-  const total = lines.reduce((s, l) => s + l.price * (l.qty || 1), 0);
-  const cost = lines.reduce((s, l) => s + (l.cost || 0) * (l.qty || 1), 0);
-  const t = todayStr();
-  const now = new Date();
-  const s = getSettings(); s.lastTicketNo = (s.lastTicketNo || 0) + 1;
-  const a = {
-    id: uid(), kind: "venta", date: t, time: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-    clientId: clientId || null, clientName: clientName || "Venta directa", phone: "", items: [], durationMin: 0, status: "completada", note: "",
-    sale: { completedAt: t, method, ticketNo: s.lastTicketNo, lines, total, cost, profit: total - cost },
-  };
-  decLines(lines);
-  state.appointments.push(a); persist(); return a;
-}
-export const listSales = () => state.appointments.filter((a) => a.kind === "venta").sort((a, b) => (b.sale.ticketNo || 0) - (a.sale.ticketNo || 0));
+export const listSales = () => state.appointments.filter((a) => a.kind === "venta").sort((a, b) => ((b.sale && b.sale.ticketNo) || 0) - ((a.sale && a.sale.ticketNo) || 0));
 
 // ---- estadísticas ----
 export function statsBetween(from, to) {

@@ -1,5 +1,7 @@
-import { $, $$, esc, eur, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=22";
-import { listProducts, getProduct, listClients, createSale, listSales, deleteAppt, restoreStock, IVA } from "../store.js?v=22";
+import { $, $$, esc, eur, toast, confirmDialog, fmtShort } from "../util.js?v=23";
+import { listProducts, getProduct, listClients, listSales, loadRemote, IVA } from "../store.js?v=23";
+import { apiSaleAdd, apiSaleDelete } from "../api.js?v=23";
+import { makeCombobox } from "../combobox.js?v=23";
 
 export function renderVentas(root) {
   const products = listProducts(true).filter((p) => p.category === "producto");
@@ -13,8 +15,11 @@ export function renderVentas(root) {
         <h3>Nueva venta</h3>
         <div class="form-grid">
           <label>Cliente (opcional)
-            <input id="v-client" list="v-cli-dl" placeholder="Venta directa" />
-            <datalist id="v-cli-dl">${clients.map((c) => `<option value="${esc(c.name)}">`).join("")}</datalist>
+            <div class="cb-wrap" id="v-client-combo">
+              <input class="cb-inp" id="v-client-inp" placeholder="Venta directa" autocomplete="off" spellcheck="false" />
+              <input type="hidden" id="v-client-sel" />
+              <div class="cb-drop" hidden></div>
+            </div>
           </label>
           <div class="field">
             <label>Productos</label>
@@ -36,6 +41,9 @@ export function renderVentas(root) {
       </div>
     </div>`;
 
+  // combobox de cliente (opcional): texto libre tipo "Venta directa", o elegir uno de la lista
+  makeCombobox($("#v-client-combo", root), clients.map((c) => ({ value: c.id, label: c.name })), "", null, { freeText: true });
+
   const cont = $("#v-items", root);
   const recalc = () => {
     const lines = readLines(cont);
@@ -45,14 +53,21 @@ export function renderVentas(root) {
   $("#v-add", root).onclick = () => addLine(cont, products, recalc);
   recalc();
 
-  $("#v-save", root).onclick = () => {
+  $("#v-save", root).onclick = async () => {
     const lines = readLines(cont);
     if (!lines.length) { toast("Añade al menos un producto"); return; }
-    const name = $("#v-client", root).value.trim();
-    const cli = clients.find((c) => c.name.toLowerCase() === name.toLowerCase());
-    const sale = createSale({ lines, method: $("#v-method", root).value, clientName: name || "Venta directa", clientId: cli ? cli.id : null });
-    toast(`Venta #${String(sale.sale.ticketNo).padStart(5, "0")} · ${eur(sale.sale.total)}`);
-    renderVentas(root);
+    const name = $("#v-client-inp", root).value.trim();
+    const sel = $("#v-client-sel", root).value;
+    const cli = clients.find((c) => c.id === sel) || clients.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    try {
+      // El servidor asigna ticket, calcula totales y descuenta stock.
+      const sale = await apiSaleAdd({ lines, method: $("#v-method", root).value, clientName: name || "Venta directa", clientId: cli ? cli.id : null });
+      await loadRemote();
+      toast(`Venta #${String(sale.sale.ticketNo).padStart(5, "0")} · ${eur(sale.sale.total)}`);
+      renderVentas(root);
+    } catch (e) {
+      toast(`No se pudo cobrar la venta: ${e.message}`);
+    }
   };
 
   drawRecent(root);
@@ -76,23 +91,38 @@ function drawRecent(root) {
         <button class="icon-btn del" data-del title="Eliminar">🗑</button>
       </div>`;
     row.querySelector("[data-print]").onclick = () => printTicket(a);
-    row.querySelector("[data-del]").onclick = () => { if (confirmDialog("¿Eliminar esta venta? Se devolverá el stock.")) { restoreStock(a.sale.lines); deleteAppt(a.id); renderVentas(root); } };
+    row.querySelector("[data-del]").onclick = async () => {
+      if (!confirmDialog("¿Eliminar esta venta? Se devolverá el stock.")) return;
+      try {
+        await apiSaleDelete(a.id); // el servidor devuelve el stock en el mismo commit
+        await loadRemote();
+        renderVentas(root);
+      } catch (e) { toast(`No se pudo eliminar: ${e.message}`); }
+    };
     box.appendChild(row);
   }
 }
 
-// ---- widget de líneas (producto, precio, cantidad) ----
+// ---- widget de líneas (combobox de producto, precio, cantidad) ----
 function addLine(container, products, onChange) {
   const el = document.createElement("div");
   el.className = "line";
-  const opts = products.map((p) => `<option value="${p.id}">${esc(p.name)} — ${eur(p.price)}</option>`).join("");
   el.innerHTML = `
-    <select data-prod><option value="">— elegir —</option>${opts}</select>
+    <div class="cb-wrap">
+      <input class="cb-inp" placeholder="— elegir producto —" autocomplete="off" spellcheck="false" />
+      <input type="hidden" data-prod />
+      <div class="cb-drop" hidden></div>
+    </div>
     <input data-price type="number" step="0.01" min="0" placeholder="0,00" />
     <input data-qty type="number" min="1" value="1" />
     <button type="button" class="icon-btn del" data-rm title="Quitar">✕</button>`;
-  const sel = el.querySelector("[data-prod]"), price = el.querySelector("[data-price]"), qty = el.querySelector("[data-qty]");
-  sel.addEventListener("change", () => { const p = getProduct(sel.value); if (p) price.value = p.price; onChange && onChange(); });
+  const price = el.querySelector("[data-price]"), qty = el.querySelector("[data-qty]");
+  const prodItems = products.map((p) => ({ value: p.id, label: `${p.name} — ${eur(p.price)}` }));
+  makeCombobox(el.querySelector(".cb-wrap"), prodItems, "", (val) => {
+    const p = getProduct(val);
+    if (p) price.value = p.price;
+    onChange && onChange();
+  });
   price.addEventListener("input", () => onChange && onChange());
   qty.addEventListener("input", () => onChange && onChange());
   el.querySelector("[data-rm]").onclick = () => { el.remove(); onChange && onChange(); };
@@ -105,8 +135,10 @@ function readLines(container) {
     const p = getProduct(sel.value);
     const price = Number(el.querySelector("[data-price]").value) || 0;
     const qty = Number(el.querySelector("[data-qty]").value) || 1;
+    const cbInp = el.querySelector(".cb-inp");
+    const name = p ? p.name : (cbInp ? cbInp.value.split(" — ")[0].trim() : "");
     if (!sel.value && !price) return null;
-    return { productId: sel.value || null, name: p ? p.name : (sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text.split(" — ")[0] : "Producto"), price, cost: p ? p.cost : 0, qty };
+    return { productId: sel.value || null, name: name || "Producto", price, cost: p ? p.cost : 0, qty };
   }).filter(Boolean);
 }
 

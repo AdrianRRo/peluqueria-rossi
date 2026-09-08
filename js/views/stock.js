@@ -1,5 +1,6 @@
-import { $, esc, eur, toast, openModal } from "../util.js?v=22";
-import { listStock, isLow, adjustStock, setStockValues } from "../store.js?v=22";
+import { $, esc, eur, toast, openModal } from "../util.js?v=23";
+import { listStock, isLow, loadRemote } from "../store.js?v=23";
+import { apiStockMove, apiProductPatch } from "../api.js?v=23";
 
 export function renderStock(root) {
   const items = listStock();
@@ -60,12 +61,18 @@ function restock(p, onDone) {
       <label>Unidades que entran <input id="r-add" type="number" min="1" value="1" /></label>
       <p class="muted" style="font-size:.8rem">Stock actual: <b>${Number(p.stock) || 0}</b> uds</p>
     </div>`,
-    onSave: (m) => {
+    onSave: async (m) => {
       const n = Number($("#r-add", m).value) || 0;
       if (n <= 0) { toast("Indica una cantidad válida"); return false; }
-      adjustStock(p.id, n);
-      toast(`+${n} uds en ${p.name}`);
-      onDone && onDone();
+      try {
+        await apiStockMove(p.id, n);
+        await loadRemote();
+        toast(`+${n} uds en ${p.name}`);
+        onDone && onDone();
+      } catch (e) {
+        toast(`No se pudo guardar: ${e.message}`);
+        return false;
+      }
     },
   });
 }
@@ -81,10 +88,16 @@ function adjust(p, onDone) {
       </div>
       <p class="muted" style="font-size:.8rem">Usa esto para corregir tras un recuento manual.</p>
     </div>`,
-    onSave: (m) => {
-      setStockValues(p.id, $("#a-stock", m).value, $("#a-min", m).value);
-      toast("Stock actualizado");
-      onDone && onDone();
+    onSave: async (m) => {
+      try {
+        await apiProductPatch(p.id, { stock: Number($("#a-stock", m).value) || 0, minStock: Number($("#a-min", m).value) || 0 });
+        await loadRemote();
+        toast("Stock actualizado");
+        onDone && onDone();
+      } catch (e) {
+        toast(`No se pudo guardar: ${e.message}`);
+        return false;
+      }
     },
   });
 }

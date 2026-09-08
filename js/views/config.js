@@ -1,5 +1,6 @@
-import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=22";
-import { getClosedWeekdays, setClosedWeekdays, listVacations, addVacation, deleteVacation } from "../store.js?v=22";
+import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=23";
+import { getClosedWeekdays, listVacations, loadRemote } from "../store.js?v=23";
+import { apiSettingsPut, apiVacationAdd, apiVacationDelete } from "../api.js?v=23";
 
 // orden de visualización lun→dom; el valor es el getDay() de JS (0=domingo)
 const WEEKDAYS = [[1, "Lunes"], [2, "Martes"], [3, "Miércoles"], [4, "Jueves"], [5, "Viernes"], [6, "Sábado"], [0, "Domingo"]];
@@ -41,15 +42,18 @@ export function renderConfig(root) {
   drawWeek(root);
   drawVacations(root);
 
-  $("#vac-add", root).onclick = () => {
+  $("#vac-add", root).onclick = async () => {
     const from = $("#vac-from", root).value;
     const to = $("#vac-to", root).value || from;
     if (!from) { toast("Indica la fecha"); return; }
     if (to < from) { toast("La fecha 'hasta' es anterior a 'desde'"); return; }
-    addVacation(from, to, $("#vac-note", root).value.trim());
-    $("#vac-note", root).value = "";
-    toast("Vacaciones añadidas");
-    drawVacations(root);
+    try {
+      await apiVacationAdd({ from, to, note: $("#vac-note", root).value.trim() });
+      await loadRemote();
+      $("#vac-note", root).value = "";
+      toast("Vacaciones añadidas");
+      drawVacations(root);
+    } catch (e) { toast(`No se pudo guardar: ${e.message}`); }
   };
 }
 
@@ -67,11 +71,17 @@ function drawWeek(root) {
       ? sel.sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b)).map((d) => `<span class="day-pill">✕ ${wdName(d)}</span>`).join("")
       : `<span class="muted" style="font-size:.8rem">Ningún día cerrado por ahora.</span>`;
   };
-  $$("[data-wd]", box).forEach((cb) => (cb.onchange = () => {
+  $$("[data-wd]", box).forEach((cb) => (cb.onchange = async () => {
     const arr = $$("[data-wd]", box).filter((x) => x.checked).map((x) => Number(x.dataset.wd));
-    setClosedWeekdays(arr);
-    tags();
-    toast("Horario actualizado");
+    try {
+      await apiSettingsPut({ closedWeekdays: arr });
+      await loadRemote();
+      tags();
+      toast("Horario actualizado");
+    } catch (e) {
+      toast(`No se pudo guardar: ${e.message}`);
+      cb.checked = !cb.checked; // revertir el checkbox: nada se guardó
+    }
   }));
   tags();
 }
@@ -86,7 +96,14 @@ function drawVacations(root) {
     row.innerHTML = `
       <div class="row-main"><h4><span class="legend-chip lc-vac" style="margin-right:8px;padding:1px 9px">🌴</span>${fmtShort(v.from)}${v.to !== v.from ? ` – ${fmtShort(v.to)}` : ""}</h4><p>${esc(v.note || "Cerrado")}</p></div>
       <div class="row-actions"><button class="icon-btn del" data-del title="Quitar">🗑</button></div>`;
-    row.querySelector("[data-del]").onclick = () => { if (confirmDialog("¿Quitar estas vacaciones?")) { deleteVacation(v.id); drawVacations(root); } };
+    row.querySelector("[data-del]").onclick = async () => {
+      if (!confirmDialog("¿Quitar estas vacaciones?")) return;
+      try {
+        await apiVacationDelete(v.id);
+        await loadRemote();
+        drawVacations(root);
+      } catch (e) { toast(`No se pudo eliminar: ${e.message}`); }
+    };
     box.appendChild(row);
   }
 }

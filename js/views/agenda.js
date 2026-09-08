@@ -1,7 +1,7 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, uid, todayStr, addDays, weekStart, parseDate, dateToStr, dowShort, fmtLong, fmtShort } from "../util.js?v=22";
-import { apptsByDate, apptsBetween, getAppt, upsertAppt, deleteAppt, listClients, getClient, upsertClient, listProducts, getProduct, nextTicketNo, consumeStock, restoreStock, closedInfo } from "../store.js?v=22";
-import { apiNotify } from "../api.js?v=22";
-import { makeCombobox } from "../combobox.js?v=22";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, todayStr, addDays, weekStart, parseDate, dowShort, fmtLong, fmtShort } from "../util.js?v=23";
+import { apptsByDate, apptsBetween, getAppt, listClients, getClient, listProducts, getProduct, closedInfo, loadRemote } from "../store.js?v=23";
+import { apiNotify, apiApptAdd, apiApptPatch, apiApptDelete, apiClientAdd } from "../api.js?v=23";
+import { makeCombobox } from "../combobox.js?v=23";
 
 const START_H = 9, END_H = 21;
 const HOUR_PX = 52;            // alto de cada franja horaria (coincide con .cal2-slot)
@@ -152,7 +152,7 @@ function drawDay(root) {
     row.querySelector('[data-act="edit"]').onclick = () => editAppt(a.id, null, () => renderAgenda(root));
     if (a.status !== "completada") row.querySelector('[data-act="done"]').onclick = () => checkout(a.id, () => renderAgenda(root));
     row.querySelector('[data-act="wa"]').onclick = () => remind(a);
-    row.querySelector('[data-act="del"]').onclick = () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(a.id); renderAgenda(root); } };
+    row.querySelector('[data-act="del"]').onclick = () => { if (confirmDialog("¿Eliminar la cita?")) removeAppt(a.id, () => renderAgenda(root)); };
     list.appendChild(row);
   }
   body.innerHTML = banner;
@@ -190,6 +190,17 @@ async function remind(a) {
   } catch (e) {
     toast("No se pudo enviar automático; abriendo WhatsApp…");
     whatsapp(phone, text);
+  }
+}
+
+// Borrado por endpoint; recarga el estado del servidor tras eliminar.
+async function removeAppt(id, onDone) {
+  try {
+    await apiApptDelete(id);
+    await loadRemote();
+    onDone && onDone();
+  } catch (e) {
+    toast(`No se pudo eliminar la cita: ${e.message}`);
   }
 }
 
@@ -247,16 +258,16 @@ function editAppt(id, preset, onDone) {
     saveLabel: "Guardar",
     extra: id ? [
       ...(a.status !== "completada" ? [{ label: "💶 Completar y cobrar", cls: "btn-primary", onClick: (mm, close) => { close(); checkout(id, onDone); } }] : []),
-      { label: "🗑 Eliminar", cls: "btn-danger", onClick: () => { if (confirmDialog("¿Eliminar la cita?")) { deleteAppt(id); onDone && onDone(); } else return false; } },
+      { label: "🗑 Eliminar", cls: "btn-danger", onClick: async () => { if (!confirmDialog("¿Eliminar la cita?")) return false; await removeAppt(id, onDone); } },
     ] : [],
-    onSave: (mm) => {
+    onSave: async (mm) => {
       const sel = $("#f-client-sel", mm).value;
       let phone = $("#f-phone", mm).value.trim();
       let clientId = null, clientName = "";
       if (sel === "__new__") {
         clientName = $("#f-newname", mm).value.trim();
         if (!clientName) { toast("Indica el nombre del nuevo cliente"); return false; }
-        const c = upsertClient({ name: clientName, phone });
+        const c = await apiClientAdd({ name: clientName, phone }); // el servidor asigna el id
         clientId = c.id;
       } else if (sel === "__keep__") {
         clientId = a.clientId || null; clientName = a.clientName || "";
@@ -277,32 +288,31 @@ function editAppt(id, preset, onDone) {
       const remindOn = $("#f-remind", mm).checked;
       const status = $("#f-status", mm).value;
 
-      // Si la cita queda como "Completada", se registra la venta (entra en Facturación
-      // y Estadísticas). Mantiene el nº de ticket y la fecha de cobro si ya existían.
-      let sale = a.sale || null;
+      // Si la cita queda como "Completada", la venta (totales, ticket y stock)
+      // la calcula y persiste el servidor en el mismo commit.
+      let sale;
       let cobroMsg = "Cita guardada";
       if (status === "completada") {
         if (!items.length) { toast("Añade al menos un servicio/producto para cobrar la cita"); return false; }
         const method = $("#f-method", mm).value;
         const lines = items.map((it) => ({ productId: it.productId || null, name: it.name, price: Number(it.price) || 0, cost: it.productId && getProduct(it.productId) ? getProduct(it.productId).cost : 0, qty: 1 }));
-        const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
-        const cost = lines.reduce((s, l) => s + l.cost * l.qty, 0);
-        if (a.sale && a.sale.lines) restoreStock(a.sale.lines); // re-cuadra stock si ya se había cobrado antes
-        consumeStock(lines);
-        sale = { completedAt: (a.sale && a.sale.completedAt) || todayStr(), method, ticketNo: (a.sale && a.sale.ticketNo) || nextTicketNo(), lines, total, cost, profit: total - cost };
-        cobroMsg = `Cobrado ${eur(total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`;
-      } else if (a.sale && a.sale.lines) {
-        // dejó de estar completada: devolvemos el stock y retiramos la venta para no dejarla a medias
-        restoreStock(a.sale.lines);
-        sale = null;
+        sale = { method, lines };
+        cobroMsg = `Cobrado · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`;
+      } else if (a.sale) {
+        sale = null; // dejó de estar completada: el servidor devuelve el stock
       }
 
-      const saved = upsertAppt({
-        id, clientId, clientName,
-        phone, status,
+      const payload = {
+        clientId, clientName, phone, status,
         date, time, endTime: endTime || null, durationMin,
-        items, note: $("#f-note", mm).value.trim(), sale, remind: remindOn,
-      });
+        items, note: $("#f-note", mm).value.trim(), remind: remindOn,
+      };
+      if (sale !== undefined) payload.sale = sale;
+
+      // Escritura por endpoint + recarga del estado (fuente única: el servidor).
+      // Si falla, la vista se queda abierta con el error visible (sin offline silencioso).
+      const saved = id ? await apiApptPatch(id, payload) : await apiApptAdd(payload);
+      await loadRemote();
       toast(cobroMsg);
       onDone && onDone();
       // recordatorio solo al CREAR una cita futura, con la opción marcada y si el día NO está cerrado
@@ -365,15 +375,14 @@ function checkout(id, onDone) {
     title: "Completar y cobrar",
     body,
     saveLabel: "Cobrar y completar",
-    onSave: (mm) => {
+    onSave: async (mm) => {
       const lines = readLines(mm.querySelector("#co-items"), true);
       if (!lines.length) { toast("Añade al menos un concepto"); return false; }
-      const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
-      const cost = lines.reduce((s, l) => s + l.cost * l.qty, 0);
       const method = $("#co-method", mm).value;
-      upsertAppt({ id, status: "completada", sale: { completedAt: todayStr(), method, ticketNo: nextTicketNo(), lines, total, cost, profit: total - cost } });
-      consumeStock(lines);
-      toast(`Cobrado ${eur(total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`);
+      // El servidor calcula totales/ticket y descuenta stock en el mismo commit.
+      const saved = await apiApptPatch(id, { status: "completada", sale: { method, lines } });
+      await loadRemote();
+      toast(`Cobrado ${eur(saved.sale.total)} · ${method === "tarjeta" ? "tarjeta" : "efectivo"}`);
       onDone && onDone();
     },
   });

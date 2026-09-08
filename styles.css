@@ -273,3 +273,16 @@ textarea { resize: vertical; min-height: 64px; }
 .cb-opt:hover, .cb-opt.cb-hi { background: var(--accent-soft, var(--bg-soft)); color: var(--accent); }
 .cb-opt-special { color: var(--accent); font-style: italic; }
 .cb-empty { padding: 8px 12px; font-size: .88rem; color: var(--muted); }
+
+/* ===== banner de sin conexión (API-first: fallos de red visibles) ===== */
+#offline-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  padding: 10px 14px; background: #b3261e; color: #fff;
+  font-weight: 600; font-size: .9rem; box-shadow: 0 2px 12px rgba(0,0,0,.35);
+}
+#offline-banner[hidden] { display: none; }
+#offline-banner button {
+  background: #fff; color: #b3261e; border: 0; border-radius: 8px;
+  padding: 5px 14px; font-weight: 700; cursor: pointer; font-size: .85rem;
+}
