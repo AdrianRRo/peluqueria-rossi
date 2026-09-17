@@ -1,5 +1,5 @@
-import { $, $$, esc, eur, toast, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=23";
-import { apptsBetween, IVA } from "../store.js?v=23";
+import { $, $$, esc, eur, toast, todayStr, addDays, weekStart, monthStart, yearStart, parseDate, dateToStr, fmtShort, fmtLong } from "../util.js?v=24";
+import { apptsBetween, IVA } from "../store.js?v=24";
 
 let preset = "mes";
 let cFrom = todayStr(), cTo = todayStr();

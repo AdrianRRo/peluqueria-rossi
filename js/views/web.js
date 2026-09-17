@@ -5,13 +5,13 @@
 //    si no hay precio, en la web sale el servicio SIN precio.
 //  - Flag "mostrar en la portada": los grupos marcados salen como tarjeta en la
 //    home; todos salen en la página de servicios.
-import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=23";
+import { $, $$, esc, openModal, toast, confirmDialog } from "../util.js?v=24";
 import {
   imgUrl, apiGalleryList, apiGalleryAdd, apiGalleryPatch, apiGalleryDelete,
   apiWebGroups, apiWebGroupAdd, apiWebGroupPatch, apiWebGroupDelete,
   apiWebServiceAdd, apiWebServicePatch, apiWebServiceDelete,
-  apiWebStats,
-} from "../api.js?v=23";
+  apiWebStats, apiWebGroupImageSet, apiWebGroupImageDel, groupImgUrl,
+} from "../api.js?v=24";
 
 const MAX_MB = 6;
 const TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
@@ -61,8 +61,36 @@ function hostOnly(url) {
   try { return new URL(url).hostname; } catch { return url; }
 }
 
-function browserOf(ua) {
-  return (ua || "").trim().split(/\s+/)[0] || null;
+// El backend ya clasifica el User-Agent en columnas propias (ua_browser, ua_os,
+// ua_device, is_bot). ANTES esta función hacía `ua.split(" ")[0]`, que en todos los
+// navegadores reales devuelve "Mozilla/5.0" -> el panel pintaba siempre lo mismo.
+// Ahora se usan las columnas y el UA crudo es solo el último recurso.
+function browserOf(e) {
+  return e?.navegador || e?.ua_browser || null;
+}
+
+function osOf(e) { return e?.so || e?.ua_os || null; }
+function deviceOf(e) { return e?.dispositivo || e?.ua_device || null; }
+
+// Un bot no es una visita: se marca en su propia columna para que la dueña no lo
+// confunda con una clienta (Googlebot aparecía como "Chrome").
+function quienOf(e) {
+  if (e?.is_bot) return { txt: "Bot", cls: "tag" };
+  const b = browserOf(e), o = osOf(e), d = deviceOf(e);
+  const partes = [b, o].filter(Boolean);
+  return { txt: (partes.length ? partes.join(" · ") : (d || "—")), cls: "tag cat" };
+}
+
+// Agrupa los eventos por sesión anónima (sid). Sin sid no hay sesión que agrupar.
+function porSesion(evs) {
+  const m = new Map();
+  evs.forEach((e) => {
+    const k = e.sesion || null;
+    if (!k) return;
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(e);
+  });
+  return m;
 }
 
 async function loadWebStats(root) {
@@ -82,28 +110,58 @@ async function loadWebStats(root) {
     host.innerHTML = `<p class="empty">Aún no hay visitas registradas. Cuando la web pública reciba tráfico, lo verás aquí.</p>`;
     return;
   }
+
+  const sesiones = porSesion(s.ultimos || []);
   const rows = (s.ultimos || []).map((e) => {
     const d = new Date(e.ts);
+    const q = quienOf(e);
     return `<tr>
       <td>${Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
       <td>${esc(KIND_LABEL[e.kind] || e.kind)}</td>
       <td>${esc(e.path || "—")}</td>
-      <td>${esc(hostOnly(e.referer) || "—")}</td>
+      <td><span class="${q.cls}">${esc(q.txt)}</span></td>
       <td>${esc(e.country || "—")}</td>
-      <td>${esc(browserOf(e.ua) || "—")}</td>
+      <td>${e.sesion ? `<code>${esc(String(e.sesion).slice(0, 6))}</code>` : "—"}</td>
     </tr>`;
   }).join("");
+
   host.innerHTML = `
     <div class="kpis" style="margin-bottom:14px">
       <div class="kpi accent"><div class="v">${s.total_visitas}</div><div class="l">Visitas totales</div></div>
+      <div class="kpi"><div class="v">${s.sesiones_30d ?? 0}</div><div class="l">Sesiones (30d)</div></div>
       <div class="kpi"><div class="v">${s.unicos_30d}</div><div class="l">Visitantes únicos (30d)</div></div>
       <div class="kpi good"><div class="v">${s.clicks_wa_total}</div><div class="l">Clics WhatsApp (total)</div></div>
       <div class="kpi"><div class="v">${s.clicks_wa_30d}</div><div class="l">Clics WhatsApp (30d)</div></div>
+      <div class="kpi"><div class="v">${s.bots_excluidos ?? 0}</div><div class="l">Bots excluidos</div></div>
     </div>
+    ${bloqueReparto("Dispositivo", s.por_dispositivo)}
+    ${bloqueReparto("Navegador", s.por_navegador)}
+    ${bloqueReparto("Sistema operativo", s.por_so)}
+    ${bloqueReparto("País", s.por_pais)}
+    <p class="sub" style="margin:14px 0 6px">
+      Visitas agrupadas en <b>${sesiones.size}</b> sesión(es) anónima(s). Los bots no cuentan como visitas.
+    </p>
     <table class="tbl" style="width:100%">
-      <thead><tr><th>Hora</th><th>Tipo</th><th>Página</th><th>Desde</th><th>País</th><th>Navegador</th></tr></thead>
+      <thead><tr><th>Hora</th><th>Tipo</th><th>Página</th><th>Quién</th><th>País</th><th>Sesión</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+// Reparto horizontal (navegador/SO/dispositivo/país) con barras proporcionales.
+function bloqueReparto(titulo, lista) {
+  const arr = lista || [];
+  if (!arr.length) return "";
+  const max = Math.max(...arr.map((x) => x.n)) || 1;
+  const filas = arr.map((x) => `
+    <div style="display:flex;align-items:center;gap:8px;margin:3px 0">
+      <div style="flex:0 0 120px" class="sub">${esc(x.valor)}</div>
+      <div style="flex:1;background:var(--borde,#eee);border-radius:4px;height:10px">
+        <div style="width:${Math.round((x.n / max) * 100)}%;height:10px;border-radius:4px;background:#e8798f"></div>
+      </div>
+      <div style="flex:0 0 34px;text-align:right" class="num">${x.n}</div>
+    </div>`).join("");
+  return `<div style="margin-top:10px">
+    <p class="sub" style="margin:0 0 2px"><b>${titulo}</b></p>${filas}</div>`;
 }
 
 // ---------- Galería ----------
@@ -239,6 +297,18 @@ async function loadGroups(root) {
           <button class="btn btn-ghost del" data-gdel>Eliminar</button>
         </div>
       </div>
+      <div class="web-grupo__foto">
+        ${g.image_url
+          ? `<img src="${esc(groupImgUrl(g.id, g.image_thumb || g.image_url))}" alt="${esc(g.title)}" class="web-grupo__img" />
+             <div class="web-grupo__fotoacc">
+               <button class="btn btn-ghost" data-gimg>Cambiar imagen</button>
+               <button class="btn btn-ghost del" data-gimgdel>Quitar imagen</button>
+             </div>`
+          : `<div class="web-grupo__sinfoto">
+               <span class="muted">Sin imagen. Esta imagen se ve en la portada y en “Servicios”.</span>
+               <button class="btn btn-ghost" data-gimg>+ Añadir imagen</button>
+             </div>`}
+      </div>
       <table class="tbl" style="width:100%">
         <thead><tr><th>Servicio</th><th class="num">Precio</th><th></th></tr></thead>
         <tbody>${rows || `<tr><td colspan="3" class="empty">Sin servicios</td></tr>`}</tbody>
@@ -246,6 +316,13 @@ async function loadGroups(root) {
       <button class="btn btn-ghost" data-sadd>+ Añadir servicio</button>`;
 
     box.querySelector("[data-gedit]").onclick = () => editGroup(g, () => loadGroups(root));
+    box.querySelector("[data-gimg]").onclick = () => uploadGroupImage(g, () => loadGroups(root));
+    const bDel = box.querySelector("[data-gimgdel]");
+    if (bDel) bDel.onclick = async () => {
+      if (!confirmDialog(`¿Quitar la imagen del grupo "${g.title}"?`)) return;
+      try { await apiWebGroupImageDel(g.id); toast("Imagen quitada"); loadGroups(root); }
+      catch (e) { toast("Error: " + e.message); }
+    };
     box.querySelector("[data-gdel]").onclick = async () => {
       if (!confirmDialog(`¿Eliminar el grupo "${g.title}" y todos sus servicios?`)) return;
       try { await apiWebGroupDelete(g.id); toast("Grupo eliminado"); loadGroups(root); }
@@ -299,6 +376,39 @@ function editGroup(g, onDone) {
         if (isNew) await apiWebGroupAdd(payload); else await apiWebGroupPatch(g.id, payload);
         toast("Guardado"); onDone();
       } catch (e) { toast("Error: " + e.message); return false; }
+    },
+  });
+}
+
+// Imagen de cabecera del grupo: 1 imagen por grupo, igual que las fotos de la
+// galería (base64 -> API, que la optimiza y guarda). Se ve en portada y servicios.
+function uploadGroupImage(g, onDone) {
+  openModal({
+    title: `Imagen de "${g.title}"`,
+    body: `<div class="form-grid">
+        <label>Imagen (JPG, PNG o WebP · máx ${MAX_MB} MB)
+          <input id="f-file" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        <p class="sub" style="margin:0">Se verá en la portada y en la página de servicios.</p>
+        <div id="f-prev"></div>
+      </div>`,
+    saveLabel: "Subir",
+    onShow: (m) => {
+      $("#f-file", m).addEventListener("change", () => {
+        const f = $("#f-file", m).files[0];
+        $("#f-prev", m).innerHTML = f ? `<img src="${URL.createObjectURL(f)}" style="max-width:100%;border-radius:8px;margin-top:8px" />` : "";
+      });
+    },
+    onSave: async (m) => {
+      const f = $("#f-file", m).files[0];
+      if (!f) { toast("Elige una imagen"); return false; }
+      if (!TYPES.includes(f.type)) { toast("Formato no válido (JPG, PNG o WebP)"); return false; }
+      if (f.size > MAX_MB * 1024 * 1024) { toast(`Demasiado grande (máx ${MAX_MB} MB)`); return false; }
+      const btn = $("[data-save]", m); if (btn) { btn.disabled = true; btn.textContent = "Subiendo…"; }
+      try {
+        const data = await fileToBase64(f);
+        await apiWebGroupImageSet(g.id, f.type, data);
+        toast("Imagen guardada"); onDone();
+      } catch (e) { toast("Error: " + e.message); if (btn) { btn.disabled = false; btn.textContent = "Subir"; } return false; }
     },
   });
 }

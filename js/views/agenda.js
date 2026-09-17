@@ -1,7 +1,7 @@
-import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, todayStr, addDays, weekStart, parseDate, dowShort, fmtLong, fmtShort } from "../util.js?v=23";
-import { apptsByDate, apptsBetween, getAppt, listClients, getClient, listProducts, getProduct, closedInfo, loadRemote } from "../store.js?v=23";
-import { apiNotify, apiApptAdd, apiApptPatch, apiApptDelete, apiClientAdd } from "../api.js?v=23";
-import { makeCombobox } from "../combobox.js?v=23";
+import { $, $$, esc, openModal, toast, confirmDialog, whatsapp, eur, todayStr, addDays, weekStart, parseDate, dowShort, fmtLong, fmtShort } from "../util.js?v=24";
+import { apptsByDate, apptsBetween, getAppt, listClients, getClient, listProducts, getProduct, closedInfo, loadRemote } from "../store.js?v=24";
+import { apiNotify, apiApptAdd, apiApptPatch, apiApptDelete, apiClientAdd } from "../api.js?v=24";
+import { makeCombobox } from "../combobox.js?v=24";
 
 const START_H = 9, END_H = 21;
 const HOUR_PX = 52;            // alto de cada franja horaria (coincide con .cal2-slot)

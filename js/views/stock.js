@@ -1,6 +1,6 @@
-import { $, esc, eur, toast, openModal } from "../util.js?v=23";
-import { listStock, isLow, loadRemote } from "../store.js?v=23";
-import { apiStockMove, apiProductPatch } from "../api.js?v=23";
+import { $, esc, eur, toast, openModal } from "../util.js?v=24";
+import { listStock, isLow, loadRemote } from "../store.js?v=24";
+import { apiStockMove, apiProductPatch } from "../api.js?v=24";
 
 export function renderStock(root) {
   const items = listStock();

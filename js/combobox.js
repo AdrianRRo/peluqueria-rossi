@@ -9,7 +9,7 @@
 // items: [{ value, label, special? }]  ·  onSelect(value) se llama al elegir una opción.
 // opts.freeText: si true, al desenfocar sin elegir se conserva el texto escrito
 // (campos opcionales con texto libre, p. ej. el cliente en Ventas).
-import { esc } from "./util.js?v=23";
+import { esc } from "./util.js?v=24";
 
 export function makeCombobox(wrapper, items, initVal, onSelect, opts = {}) {
   const inp = wrapper.querySelector(".cb-inp");

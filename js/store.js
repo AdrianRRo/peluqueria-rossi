@@ -3,8 +3,8 @@
 // verdad. localStorage guarda SOLO el token (api.js) y el tema (aquí).
 // El estado vive en memoria y se hidrata con loadRemote() (GET /api/state);
 // las escrituras van por endpoints por-recurso desde las vistas (api.js).
-import { parseDate } from "./util.js?v=23";
-import { apiGetState } from "./api.js?v=23";
+import { parseDate } from "./util.js?v=24";
+import { apiGetState } from "./api.js?v=24";
 
 let state = { clients: [], products: [], appointments: [], vacations: [], settings: { theme: "light", closedWeekdays: [0, 1] } };
 let _loading = null;

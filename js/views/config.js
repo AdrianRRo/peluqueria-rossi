@@ -1,6 +1,6 @@
-import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=23";
-import { getClosedWeekdays, listVacations, loadRemote } from "../store.js?v=23";
-import { apiSettingsPut, apiVacationAdd, apiVacationDelete } from "../api.js?v=23";
+import { $, $$, esc, toast, confirmDialog, todayStr, fmtShort } from "../util.js?v=24";
+import { getClosedWeekdays, listVacations, loadRemote } from "../store.js?v=24";
+import { apiSettingsPut, apiVacationAdd, apiVacationDelete } from "../api.js?v=24";
 
 // orden de visualización lun→dom; el valor es el getDay() de JS (0=domingo)
 const WEEKDAYS = [[1, "Lunes"], [2, "Martes"], [3, "Miércoles"], [4, "Jueves"], [5, "Viernes"], [6, "Sábado"], [0, "Domingo"]];

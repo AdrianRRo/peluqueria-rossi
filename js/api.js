@@ -177,6 +177,17 @@ export const apiWebServicePatch = (id, patch) =>
 export const apiWebServiceDelete = (id) =>
   apiJson(`/api/web/services/${id}`, { method: "DELETE", headers: authH() });
 
+// Imagen de cabecera de un grupo de servicios (1 imagen por grupo). La dueña la
+// sube desde el panel y sale en la portada y en servicios.html.
+export const apiWebGroupImageSet = (gid, content_type, data) =>
+  apiJson(`/api/web/groups/${gid}/image`,
+          { method: "POST", headers: jsonH(), body: JSON.stringify({ content_type, data }) });
+export const apiWebGroupImageDel = (gid) =>
+  apiJson(`/api/web/groups/${gid}/image`, { method: "DELETE", headers: authH() });
+// URL pública de la imagen del grupo (versión para cachear por cambio: ?v=<url>).
+export const groupImgUrl = (gid, v) =>
+  `${API_BASE}/api/web/groups/${gid}/image${v ? `?v=${encodeURIComponent(v)}` : ""}`;
+
 // Estadísticas de la web pública (visitas y clics WhatsApp registrados por el
 // beacon /api/track). En un backend anterior al panel puede no existir aún (404).
 export const apiWebStats = () => apiJson(`/api/web/stats`, { headers: authH() });

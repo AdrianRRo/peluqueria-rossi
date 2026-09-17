@@ -1,7 +1,7 @@
-import { $, $$, esc, eur, toast, confirmDialog, fmtShort } from "../util.js?v=23";
-import { listProducts, getProduct, listClients, listSales, loadRemote, IVA } from "../store.js?v=23";
-import { apiSaleAdd, apiSaleDelete } from "../api.js?v=23";
-import { makeCombobox } from "../combobox.js?v=23";
+import { $, $$, esc, eur, toast, confirmDialog, fmtShort } from "../util.js?v=24";
+import { listProducts, getProduct, listClients, listSales, loadRemote, IVA } from "../store.js?v=24";
+import { apiSaleAdd, apiSaleDelete } from "../api.js?v=24";
+import { makeCombobox } from "../combobox.js?v=24";
 
 export function renderVentas(root) {
   const products = listProducts(true).filter((p) => p.category === "producto");

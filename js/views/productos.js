@@ -1,6 +1,6 @@
-import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=23";
-import { listProducts, getProduct, loadRemote } from "../store.js?v=23";
-import { apiProductAdd, apiProductPatch, apiProductDelete } from "../api.js?v=23";
+import { $, esc, openModal, toast, confirmDialog, eur } from "../util.js?v=24";
+import { listProducts, getProduct, loadRemote } from "../store.js?v=24";
+import { apiProductAdd, apiProductPatch, apiProductDelete } from "../api.js?v=24";
 
 export function renderProductos(root) {
   const prods = listProducts();

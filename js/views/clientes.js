@@ -1,6 +1,6 @@
-import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=23";
-import { listClients, listAppointments, loadRemote } from "../store.js?v=23";
-import { apiClientAdd, apiClientPatch, apiClientDelete } from "../api.js?v=23";
+import { $, esc, openModal, whatsapp, toast, confirmDialog, eur, fmtShort } from "../util.js?v=24";
+import { listClients, listAppointments, loadRemote } from "../store.js?v=24";
+import { apiClientAdd, apiClientPatch, apiClientDelete } from "../api.js?v=24";
 
 export function renderClientes(root) {
   const clients = listClients();

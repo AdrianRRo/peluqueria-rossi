@@ -263,6 +263,14 @@ textarea { resize: vertical; min-height: 64px; }
 .web-grupo__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
 .web-grupo__head h4 { margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
 .web-grupo__acc { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+/* Imagen de cabecera del grupo (1 por grupo): la dueña la sube aquí y se ve en
+   la portada y en la página de servicios. */
+.web-grupo__foto { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 10px; }
+.web-grupo__img { width: 132px; height: 88px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.web-grupo__fotoacc { display: flex; gap: 6px; flex-wrap: wrap; }
+.web-grupo__sinfoto { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px dashed var(--border); border-radius: 8px; padding: 8px 10px; }
+.web-grupo__sinfoto .btn { flex: 0 0 auto; }
 .tag { display: inline-block; font-size: .72rem; padding: 2px 8px; border-radius: 999px; background: var(--bg-soft); color: var(--muted); border: 1px solid var(--border); font-weight: 600; }
 
 /* combobox con buscador */

@@ -3,18 +3,18 @@
 // el token (api.js) y el tema (store.js). Sin token → login; con token →
 // loadRemote() (GET /api/state) y a la app. Si el backend no responde, se
 // muestra el banner de sin conexión (no hay modo offline silencioso).
-import { $, $$ } from "./util.js?v=23";
-import { loadRemote, resetState, getTheme, setTheme } from "./store.js?v=23";
-import { apiLogin, getToken, clearToken, showOfflineBanner } from "./api.js?v=23";
-import { renderAgenda } from "./views/agenda.js?v=23";
-import { renderClientes } from "./views/clientes.js?v=23";
-import { renderProductos } from "./views/productos.js?v=23";
-import { renderStock } from "./views/stock.js?v=23";
-import { renderStats } from "./views/stats.js?v=23";
-import { renderFacturacion } from "./views/facturacion.js?v=23";
-import { renderVentas } from "./views/ventas.js?v=23";
-import { renderConfig } from "./views/config.js?v=23";
-import { renderWeb } from "./views/web.js?v=23";
+import { $, $$ } from "./util.js?v=24";
+import { loadRemote, resetState, getTheme, setTheme } from "./store.js?v=24";
+import { apiLogin, getToken, clearToken, showOfflineBanner } from "./api.js?v=24";
+import { renderAgenda } from "./views/agenda.js?v=24";
+import { renderClientes } from "./views/clientes.js?v=24";
+import { renderProductos } from "./views/productos.js?v=24";
+import { renderStock } from "./views/stock.js?v=24";
+import { renderStats } from "./views/stats.js?v=24";
+import { renderFacturacion } from "./views/facturacion.js?v=24";
+import { renderVentas } from "./views/ventas.js?v=24";
+import { renderConfig } from "./views/config.js?v=24";
+import { renderWeb } from "./views/web.js?v=24";
 
 const ROUTES = {
   "#/agenda": renderAgenda,
